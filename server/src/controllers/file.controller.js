@@ -8,6 +8,7 @@ const config = require('../config');
 const fileService = require('../services/file.service');
 const folderService = require('../services/folder.service');
 const thumbnailService = require('../services/thumbnail.service');
+const officePreviewService = require('../services/officePreview.service');
 const activityLog = require('../services/activityLog.service');
 const { streamUploadToDisk } = require('../utils/uploadStream');
 const { deleteFromDisk } = require('../utils/storagePath');
@@ -159,6 +160,29 @@ const thumbnail = asyncHandler(async (req, res) => {
   stream.pipe(res);
 });
 
+const officePreview = asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id);
+  const file = await fileService.getActiveFileOrThrow(id);
+  const pdfPath = await officePreviewService.getOrCreatePdf(file);
+  if (!pdfPath) throw AppError.badRequest('Not an office document', 'NOT_OFFICE');
+
+  await activityLog.log({
+    userId: req.user.id,
+    action: activityLog.ACTIONS.PREVIEW_FILE,
+    targetType: 'file',
+    targetId: file.id,
+    newValue: { name: file.original_name, office: true },
+    context: req.context,
+  });
+
+  await sendFile(req, res, {
+    absolutePath: pdfPath,
+    mimeType: 'application/pdf',
+    fileName: `${file.original_name.replace(/\.[^.]+$/, '')}.pdf`,
+    mode: 'inline',
+  });
+});
+
 const rename = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id);
   const { name } = req.body || {};
@@ -184,4 +208,15 @@ const trash = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
-module.exports = { list, checkConflicts, upload, download, preview, thumbnail, rename, move, trash };
+module.exports = {
+  list,
+  checkConflicts,
+  upload,
+  download,
+  preview,
+  thumbnail,
+  officePreview,
+  rename,
+  move,
+  trash,
+};

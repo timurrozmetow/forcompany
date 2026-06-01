@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 import { ProtectedRoute, AdminRoute, PublicOnlyRoute } from './components/RouteGuards';
+import PWAUpdatePrompt from './components/PWAUpdatePrompt';
 import AppLayout from './layouts/AppLayout';
 
 import LoginPage from './pages/LoginPage';
@@ -16,7 +17,9 @@ import AdminStats from './pages/admin/AdminStats';
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <PWAUpdatePrompt />
+      <Routes>
       <Route
         path="/login"
         element={
@@ -76,6 +79,7 @@ export default function App() {
       </Route>
 
       <Route path="*" element={<Navigate to="/drive" replace />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }

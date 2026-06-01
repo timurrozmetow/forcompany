@@ -7,6 +7,7 @@ const AppError = require('../utils/AppError');
 const activityLog = require('./activityLog.service');
 const folderService = require('./folder.service');
 const textExtract = require('./textExtract.service');
+const notification = require('./notification.service');
 
 function publicFile(f) {
   return {
@@ -167,6 +168,21 @@ async function createFileRecord({
   textExtract
     .indexFile(result.insertId, storagePath, mimeType, extension, sizeBytes)
     .catch(() => {});
+
+  // Notify the folder's owner that something was uploaded into their folder.
+  if (folderId) {
+    const folder = await queryOne('SELECT created_by, name FROM folders WHERE id = ?', [folderId]);
+    if (folder) {
+      await notification.create({
+        userId: folder.created_by,
+        actorId: actor.id,
+        type: 'file_uploaded',
+        message: `${actor.username} загрузил «${originalName}» в папку «${folder.name}»`,
+        fileId: result.insertId,
+        folderId,
+      });
+    }
+  }
 
   return getFilePublic(result.insertId);
 }

@@ -155,4 +155,25 @@ CREATE TABLE IF NOT EXISTS comments (
   CONSTRAINT fk_comment_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ---------------------------------------------------------------------------
+--  notifications (in-app "bell")
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS notifications (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    BIGINT UNSIGNED NOT NULL,
+  actor_id   BIGINT UNSIGNED NULL,
+  type       VARCHAR(40)     NOT NULL,
+  message    VARCHAR(512)    NOT NULL,
+  file_id    BIGINT UNSIGNED NULL,
+  folder_id  BIGINT UNSIGNED NULL,
+  is_read    TINYINT(1)      NOT NULL DEFAULT 0,
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_notif_user (user_id, is_read, created_at),
+  CONSTRAINT fk_notif_user   FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_notif_actor  FOREIGN KEY (actor_id)  REFERENCES users(id)   ON DELETE SET NULL,
+  CONSTRAINT fk_notif_file   FOREIGN KEY (file_id)   REFERENCES files(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_notif_folder FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MoreVertical, ChevronUp, ChevronDown, Check, Star } from 'lucide-react';
 import FileIcon from './FileIcon';
@@ -62,6 +62,31 @@ export default function FileExplorer({
   const keyOf = (item) => `${item.type}-${item.id}`;
   const [dragKey, setDragKey] = useState(null);
   const [dragOverKey, setDragOverKey] = useState(null);
+  const lpTimer = useRef(null);
+  const lpFired = useRef(false);
+
+  // Long-press (touch) opens the context menu on mobile.
+  const longPress = (item) => ({
+    onTouchStart: (e) => {
+      lpFired.current = false;
+      const touch = e.touches[0];
+      clearTimeout(lpTimer.current);
+      lpTimer.current = setTimeout(() => {
+        lpFired.current = true;
+        onMenu(touch.clientX, touch.clientY, item);
+      }, 500);
+    },
+    onTouchMove: () => clearTimeout(lpTimer.current),
+    onTouchEnd: () => clearTimeout(lpTimer.current),
+  });
+  const handleOpen = (item) => {
+    if (lpFired.current) {
+      lpFired.current = false;
+      return;
+    }
+    if (selectionActive) onToggleSelect(item);
+    else onOpen(item);
+  };
 
   const dragProps = (item) => ({
     draggable: true,
@@ -114,11 +139,12 @@ export default function FileExplorer({
               className={`tile ${selectedKeys.has(k) ? 'selected' : ''} ${
                 dragOverKey === k ? 'drag-over' : ''
               } ${dragKey === k ? 'dragging' : ''}`}
-              onClick={() => (selectionActive ? onToggleSelect(item) : onOpen(item))}
+              onClick={() => handleOpen(item)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 onMenu(e.clientX, e.clientY, item);
               }}
+              {...longPress(item)}
               {...dragProps(item)}
               {...dropProps(item)}
             >
@@ -177,11 +203,12 @@ export default function FileExplorer({
             className={`list-row ${selectedKeys.has(k) ? 'selected' : ''} ${
               dragOverKey === k ? 'drag-over' : ''
             } ${dragKey === k ? 'dragging' : ''}`}
-            onClick={() => (selectionActive ? onToggleSelect(item) : onOpen(item))}
+            onClick={() => handleOpen(item)}
             onContextMenu={(e) => {
               e.preventDefault();
               onMenu(e.clientX, e.clientY, item);
             }}
+            {...longPress(item)}
             {...dragProps(item)}
             {...dropProps(item)}
           >

@@ -34,6 +34,7 @@ router.get('/zip/:sessionId', zipCtrl.downloadSelection);
 // Per-file operations.
 router.get('/:id/download', ctrl.download);
 router.get('/:id/thumbnail', ctrl.thumbnail);
+router.get('/:id/office-preview', ctrl.officePreview); // LibreOffice -> PDF
 router.head('/:id/preview', ctrl.preview);
 router.get('/:id/preview', ctrl.preview);
 

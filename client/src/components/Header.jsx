@@ -5,6 +5,7 @@ import { Search, Menu, Sun, Moon, Languages } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { initials } from '../utils/format';
+import NotificationBell from './NotificationBell';
 
 export default function Header({ onMenuClick }) {
   const { t, i18n } = useTranslation();
@@ -57,6 +58,7 @@ export default function Header({ onMenuClick }) {
       </div>
 
       <div className="header-actions">
+        <NotificationBell />
         <button className="btn-icon" onClick={switchLang} title="RU / TR" aria-label="Language">
           <Languages size={20} />
           <span className="tiny" style={{ marginLeft: 2, fontWeight: 700 }}>

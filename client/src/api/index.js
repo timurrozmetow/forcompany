@@ -54,6 +54,7 @@ export const fileApi = {
   downloadUrl: (id) => mediaUrl(`/files/${id}/download`),
   previewUrl: (id) => mediaUrl(`/files/${id}/preview`),
   thumbnailUrl: (id) => mediaUrl(`/files/${id}/thumbnail`),
+  officePreviewUrl: (id) => mediaUrl(`/files/${id}/office-preview`),
 
   // ---- Chunked / resumable upload ----
   uploadInit: (meta) => api.post('/files/upload/init', meta).then((r) => r.data),
@@ -84,7 +85,23 @@ export const fileApi = {
 
 /* ------------------------------ Search ----------------------------------- */
 export const searchApi = {
-  query: (q) => api.get('/search', { params: { q } }).then((r) => r.data),
+  query: (q, filters = {}) => {
+    const params = { q };
+    for (const [k, v] of Object.entries(filters)) if (v) params[k] = v;
+    return api.get('/search', { params }).then((r) => r.data);
+  },
+};
+
+/* ------------------------------- Users ----------------------------------- */
+export const userApi = {
+  basic: () => api.get('/users/basic').then((r) => r.data.users),
+};
+
+/* --------------------------- Notifications ------------------------------- */
+export const notificationApi = {
+  list: () => api.get('/notifications').then((r) => r.data), // { items, unread }
+  unreadCount: () => api.get('/notifications/unread-count').then((r) => r.data.count),
+  markRead: (id) => api.patch('/notifications/read', id ? { id } : {}).then((r) => r.data),
 };
 
 /* ------------------------------- Trash ----------------------------------- */

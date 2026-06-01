@@ -21,10 +21,14 @@
 - **ZIP-скачивание целой папки** (рекурсивно)
 - **Параллельная загрузка чанков**, **drag-to-move** (перетаскивание в папку), разрешение **конфликтов имён** (заменить / оставить оба / пропустить)
 - **Избранное** и **Недавние**, **теги** и **комментарии** к файлам
-- **Полнотекстовый поиск** по содержимому PDF / Word / Excel / текстовых файлов
+- **Полнотекстовый поиск** по содержимому PDF / Word / Excel + **фильтры** (тип, кто загрузил, дата, тег)
+- **Загрузка папкой целиком** (с сохранением структуры подпапок)
+- **Внутренние уведомления** (колокольчик): комментарий к вашему файлу / загрузка в вашу папку
+- **Office-превью** (Word/Excel/PowerPoint → PDF через LibreOffice на сервере)
+- **Мобильные жесты**: pull-to-refresh, long-press → контекстное меню
 - Скачивание и предпросмотр (фото, PDF, видео с перемоткой, аудио, текст) через защищённые маршруты
-- Поиск по названию, сортировка (имя/дата/размер/тип), вид сеткой/списком, breadcrumbs, кнопки назад/вперёд
-- **PWA**: установка на телефон, оффлайн-кэш последних списков
+- Сортировка (имя/дата/размер/тип), вид сеткой/списком, breadcrumbs, кнопки назад/вперёд
+- **PWA**: установка на телефон, оффлайн-кэш + **плашка «доступна новая версия»**
 
 **Админ**
 - Пользователи: создать / редактировать / сменить пароль / заблокировать / удалить / роль admin·user
@@ -104,9 +108,10 @@ mysql -u root -p -e "CREATE DATABASE company_drive CHARACTER SET utf8mb4 COLLATE
 cd server
 cp .env.example .env          # отредактируйте DB_*, JWT_SECRET, STORAGE_DIR
 npm install
-npm run migrate               # применяет database/schema.sql (fresh DB — сразу со всеми таблицами v2)
+npm run migrate               # применяет database/schema.sql (fresh DB — сразу со всеми таблицами)
 # Если БД уже существовала с прошлой версии — догоните схему:
 # npm run migrate:v2          # favorites, tags, comments, full-text
+# npm run migrate:v3          # in-app notifications (колокольчик)
 npm run seed                  # создаёт админа (admin / admin12345)
 npm run dev                   # http://localhost:5000
 
@@ -313,6 +318,14 @@ curl -s https://yourdomain.com/api/health
 
 > ⚠️ Если bot-токен где-то засветился (чат, скриншот) — **перевыпустите** его
 > через @BotFather `/revoke`.
+
+### Office-превью (Word/Excel/PowerPoint)
+Рендер office-файлов в PDF делает **LibreOffice headless** на сервере:
+```bash
+sudo apt-get install -y --no-install-recommends libreoffice-writer libreoffice-calc libreoffice-impress
+```
+Без LibreOffice превью просто недоступно — в карточке файла останется кнопка «Скачать».
+PDF-рендеры кэшируются в `STORAGE_DIR/.office/`.
 
 ### Полнотекстовый поиск
 Текст из PDF/DOCX/XLSX/txt извлекается при загрузке (`text_content` + FULLTEXT).

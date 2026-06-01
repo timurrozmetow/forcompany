@@ -60,6 +60,7 @@
     "title": "Dosyalarım",
     "newFolder": "Yeni klasör",
     "upload": "Yükle",
+    "uploadFolder": "Klasör yükle",
     "uploadFiles": "Dosya yükle",
     "gridView": "Izgara",
     "listView": "Liste",
@@ -171,6 +172,37 @@
   },
   "storage": {
     "lowSpace": "Diskte boş alan az"
+  },
+  "pwa": {
+    "newVersion": "Yeni sürüm mevcut",
+    "update": "Güncelle",
+    "later": "Sonra"
+  },
+  "notif": {
+    "title": "Bildirimler",
+    "empty": "Henüz bildirim yok"
+  },
+  "filters": {
+    "type": "Tür",
+    "all": "Tüm türler",
+    "folder": "Klasörler",
+    "image": "Resimler",
+    "video": "Video",
+    "audio": "Ses",
+    "pdf": "PDF",
+    "doc": "Belgeler",
+    "sheet": "Tablolar",
+    "ppt": "Sunumlar",
+    "archive": "Arşivler",
+    "uploader": "Yükleyen",
+    "anyone": "Herkes",
+    "from": "Başlangıç",
+    "to": "Bitiş",
+    "reset": "Sıfırla"
+  },
+  "preview2": {
+    "showOffice": "Önizlemeyi aç (PDF)",
+    "officeUnavailable": "Önizleme yok (LibreOffice kurulu değil). Dosyayı indirin."
   },
   "settings": {
     "title": "Ayarlar",

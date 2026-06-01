@@ -18,9 +18,10 @@ import {
   Star,
   X,
   Loader2,
+  FolderUp,
 } from 'lucide-react';
 
-import { folderApi, fileApi, searchApi, favoriteApi } from '../api';
+import { folderApi, fileApi, searchApi, favoriteApi, tagApi, userApi } from '../api';
 import { useToast } from '../context/ToastContext';
 import { categorize } from '../utils/fileType';
 import { useUploader } from '../hooks/useUploader';
@@ -98,9 +99,17 @@ export default function DrivePage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [conflictState, setConflictState] = useState(null); // { names, files }
 
+  const EMPTY_FILTERS = { type: '', uploadedBy: '', tagId: '', dateFrom: '', dateTo: '' };
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [tagList, setTagList] = useState([]);
+  const [userList, setUserList] = useState([]);
+  const [pullDist, setPullDist] = useState(0);
+
   const fileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
   const dragCounter = useRef(0);
   const sentinelRef = useRef(null);
+  const pullStart = useRef(null);
   const uploader = useUploader();
 
   const keyOf = (item) => `${item.type}-${item.id}`;
@@ -117,7 +126,7 @@ export default function DrivePage() {
     if (showSkeleton) setLoading(true);
     try {
       if (isSearching) {
-        const res = await searchApi.query(searchQuery.trim());
+        const res = await searchApi.query(searchQuery.trim(), filters);
         setFolders(res.folders);
         setFiles(res.files);
         setFilesTotal(res.files.length);
@@ -137,7 +146,7 @@ export default function DrivePage() {
     } finally {
       if (showSkeleton) setLoading(false);
     }
-  }, [folderId, isSearching, searchQuery, t, toast]);
+  }, [folderId, isSearching, searchQuery, filters, t, toast]);
 
   useEffect(() => {
     load({ skeleton: true });
@@ -146,6 +155,16 @@ export default function DrivePage() {
   useEffect(() => {
     setSelectedKeys(new Set());
   }, [folderId, searchQuery]);
+
+  // Reset filters when leaving search; load tag/user lists once for the filter bar.
+  useEffect(() => {
+    if (!isSearching) setFilters(EMPTY_FILTERS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSearching]);
+  useEffect(() => {
+    tagApi.list().then(setTagList).catch(() => {});
+    userApi.basic().then(setUserList).catch(() => {});
+  }, []);
 
   const loadFavorites = useCallback(async () => {
     try {
@@ -430,6 +449,98 @@ export default function DrivePage() {
     e.target.value = '';
   };
 
+  // Whole-folder upload: recreate the folder tree, then upload files into it.
+  const folderInputSetup = useRef(false);
+  useEffect(() => {
+    if (folderInputRef.current && !folderInputSetup.current) {
+      folderInputRef.current.setAttribute('webkitdirectory', '');
+      folderInputRef.current.setAttribute('directory', '');
+      folderInputSetup.current = true;
+    }
+  });
+
+  const uploadFolder = async (fileList) => {
+    const arr = Array.from(fileList || []);
+    if (!arr.length || isSearching) return;
+    const dirCache = new Map([['', folderId]]);
+
+    const ensureFolder = async (name, parentId) => {
+      try {
+        const f = await folderApi.create(name, parentId);
+        return f.id;
+      } catch (err) {
+        if (err?.response?.data?.error?.code === 'DUPLICATE_NAME') {
+          const data = await folderApi.list(parentId);
+          const found = data.folders.find((x) => x.name === name);
+          if (found) return found.id;
+        }
+        throw err;
+      }
+    };
+    const ensureDirPath = async (relDir) => {
+      if (dirCache.has(relDir)) return dirCache.get(relDir);
+      const parts = relDir.split('/').filter(Boolean);
+      let parentId = folderId;
+      let acc = '';
+      for (const part of parts) {
+        acc = acc ? `${acc}/${part}` : part;
+        if (dirCache.has(acc)) {
+          parentId = dirCache.get(acc);
+          continue;
+        }
+        // eslint-disable-next-line no-await-in-loop
+        const id = await ensureFolder(part, parentId);
+        dirCache.set(acc, id);
+        parentId = id;
+      }
+      return parentId;
+    };
+
+    const groups = new Map();
+    for (const f of arr) {
+      const rel = f.webkitRelativePath || f.name;
+      const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
+      if (!groups.has(dir)) groups.set(dir, []);
+      groups.get(dir).push(f);
+    }
+    try {
+      for (const [dir, files] of groups) {
+        // eslint-disable-next-line no-await-in-loop
+        const fid = await ensureDirPath(dir);
+        // eslint-disable-next-line no-await-in-loop
+        await uploader.upload(files, fid, {});
+      }
+      toast.success(t('toast.uploadDone'));
+    } catch (err) {
+      toast.error(err?.response?.data?.error?.message || t('toast.error'));
+    }
+    load();
+  };
+  const onPickFolder = (e) => {
+    uploadFolder(e.target.files);
+    e.target.value = '';
+  };
+
+  /* --------------------------- pull to refresh -------------------------- */
+  const onTouchStart = (e) => {
+    const sc = document.querySelector('.app-content');
+    pullStart.current = sc && sc.scrollTop <= 0 ? e.touches[0].clientY : null;
+  };
+  const onTouchMove = (e) => {
+    if (pullStart.current == null) return;
+    const d = e.touches[0].clientY - pullStart.current;
+    if (d > 0) setPullDist(Math.min(d * 0.5, 80));
+  };
+  const onTouchEnd = () => {
+    if (pullDist > 55) load();
+    setPullDist(0);
+    pullStart.current = null;
+  };
+
+  const resetFilters = () => setFilters(EMPTY_FILTERS);
+  const setFilter = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
+  const anyFilter = Object.values(filters).some(Boolean);
+
   const onDrop = (e) => {
     e.preventDefault();
     dragCounter.current = 0;
@@ -458,8 +569,18 @@ export default function DrivePage() {
       onDragOver={(e) => e.preventDefault()}
       onDragEnter={onDragEnter}
       onDragLeave={onDragLeave}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
       style={{ position: 'relative', minHeight: '70vh' }}
     >
+      <div
+        className={`ptr-indicator ${pullDist > 55 ? 'armed' : ''}`}
+        style={{ height: pullDist }}
+      >
+        <Loader2 size={20} className={pullDist > 55 ? 'spin' : ''} />
+      </div>
+
       <LowSpaceBanner locale={locale} />
 
       {dragging && (
@@ -472,10 +593,49 @@ export default function DrivePage() {
       )}
 
       {isSearching ? (
-        <h1 className="page-title">
-          <SearchIcon size={22} style={{ verticalAlign: '-3px', marginRight: 8 }} />
-          {t('common.search')}: “{searchQuery}”
-        </h1>
+        <>
+          <h1 className="page-title">
+            <SearchIcon size={22} style={{ verticalAlign: '-3px', marginRight: 8 }} />
+            {t('common.search')}: “{searchQuery}”
+          </h1>
+          <div className="search-filters">
+            <select className="select" value={filters.type} onChange={(e) => setFilter('type', e.target.value)}>
+              <option value="">{t('filters.all')}</option>
+              <option value="folder">{t('filters.folder')}</option>
+              <option value="image">{t('filters.image')}</option>
+              <option value="pdf">{t('filters.pdf')}</option>
+              <option value="doc">{t('filters.doc')}</option>
+              <option value="sheet">{t('filters.sheet')}</option>
+              <option value="ppt">{t('filters.ppt')}</option>
+              <option value="video">{t('filters.video')}</option>
+              <option value="audio">{t('filters.audio')}</option>
+              <option value="archive">{t('filters.archive')}</option>
+            </select>
+            <select className="select" value={filters.uploadedBy} onChange={(e) => setFilter('uploadedBy', e.target.value)}>
+              <option value="">{t('filters.uploader')}: {t('filters.anyone')}</option>
+              {userList.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.username}
+                </option>
+              ))}
+            </select>
+            <select className="select" value={filters.tagId} onChange={(e) => setFilter('tagId', e.target.value)}>
+              <option value="">{t('tags.title')}: {t('common.all')}</option>
+              {tagList.map((tg) => (
+                <option key={tg.id} value={tg.id}>
+                  {tg.name}
+                </option>
+              ))}
+            </select>
+            <input className="input" type="date" value={filters.dateFrom} title={t('filters.from')} onChange={(e) => setFilter('dateFrom', e.target.value)} />
+            <input className="input" type="date" value={filters.dateTo} title={t('filters.to')} onChange={(e) => setFilter('dateTo', e.target.value)} />
+            {anyFilter && (
+              <button className="btn btn-ghost" onClick={resetFilters}>
+                <X size={16} /> {t('filters.reset')}
+              </button>
+            )}
+          </div>
+        </>
       ) : (
         <Breadcrumbs
           crumbs={crumbs}
@@ -514,6 +674,13 @@ export default function DrivePage() {
             </button>
             <button className="btn" onClick={() => fileInputRef.current?.click()}>
               <Upload size={18} /> {t('drive.upload')}
+            </button>
+            <button
+              className="btn"
+              onClick={() => folderInputRef.current?.click()}
+              title={t('drive.uploadFolder')}
+            >
+              <FolderUp size={18} /> {t('drive.uploadFolder')}
             </button>
           </>
         )}
@@ -577,6 +744,7 @@ export default function DrivePage() {
       )}
 
       <input ref={fileInputRef} type="file" multiple hidden onChange={onPickFiles} />
+      <input ref={folderInputRef} type="file" multiple hidden onChange={onPickFolder} />
 
       {!isSearching && (
         <button className="fab" onClick={() => fileInputRef.current?.click()} aria-label={t('drive.upload')}>

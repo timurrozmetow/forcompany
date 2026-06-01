@@ -3,6 +3,7 @@
 const { query, queryOne, execute, transaction } = require('../db/pool');
 const { deleteFromDisk } = require('../utils/storagePath');
 const { removeThumb } = require('./thumbnail.service');
+const { removePdf } = require('./officePreview.service');
 const AppError = require('../utils/AppError');
 const activityLog = require('./activityLog.service');
 const notify = require('./notify.service');
@@ -147,6 +148,7 @@ async function permanentDeleteFile({ id, actor, context }) {
   try {
     await deleteFromDisk(file.storage_path);
     await removeThumb(file.stored_name);
+    await removePdf(file.stored_name);
   } catch (err) {
     logger.error('permanentDeleteFile: disk cleanup failed:', err.message);
   }
@@ -190,6 +192,7 @@ async function permanentDeleteFolder({ id, actor, context }) {
     try {
       await deleteFromDisk(f.storage_path);
       await removeThumb(f.stored_name);
+      await removePdf(f.stored_name);
     } catch (err) {
       logger.error(`permanentDeleteFolder: disk cleanup failed for file ${f.id}:`, err.message);
     }

@@ -44,6 +44,9 @@ fi
 log "1/10  System packages"
 $SUDO apt-get update -y
 $SUDO apt-get install -y curl git ca-certificates ufw
+# LibreOffice (headless) powers the Word/Excel/PowerPoint -> PDF preview.
+# Optional but recommended; comment out to skip (~400 MB).
+$SUDO apt-get install -y --no-install-recommends libreoffice-writer libreoffice-calc libreoffice-impress || true
 
 # --------------------------------------------------------------------------
 log "2/10  Node.js 20 + PM2"
@@ -120,6 +123,7 @@ cd "$APP_DIR/server"
 npm ci --omit=dev
 npm run migrate
 npm run migrate:v2
+npm run migrate:v3
 ADMIN_PASSWORD="$ADMIN_PASSWORD" npm run seed   # creates admin with your password if no admin exists
 
 # --------------------------------------------------------------------------

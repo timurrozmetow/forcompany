@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Download, Loader2, Star, Info, Tag as TagIcon, Send, Trash2, Plus } from 'lucide-react';
+import { X, Download, Loader2, Star, Info, Tag as TagIcon, Send, Trash2, Plus, Eye } from 'lucide-react';
 import FileIcon from './FileIcon';
 import api from '../api/client';
 import { fileApi, tagApi, commentApi } from '../api';
@@ -153,8 +153,32 @@ export default function PreviewModal({ file, onClose, locale, isFavorite, onTogg
   const [loadingText, setLoadingText] = useState(false);
   const [failed, setFailed] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [officeState, setOfficeState] = useState('idle'); // idle | loading | ready | error
+  const [officeUrl, setOfficeUrl] = useState(null);
 
   const category = file ? categorize(file) : 'file';
+  const isOfficeDoc = ['doc', 'sheet', 'ppt'].includes(category);
+
+  // Reset + cleanup the office-preview blob URL when the file changes.
+  useEffect(() => {
+    setOfficeState('idle');
+    setOfficeUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, [file]);
+
+  const loadOfficePreview = async () => {
+    setOfficeState('loading');
+    try {
+      const res = await api.get(`/files/${file.id}/office-preview`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      setOfficeUrl(url);
+      setOfficeState('ready');
+    } catch (_) {
+      setOfficeState('error');
+    }
+  };
 
   useEffect(() => {
     if (!file) return undefined;
@@ -191,6 +215,10 @@ export default function PreviewModal({ file, onClose, locale, isFavorite, onTogg
 
   const renderBody = () => {
     if (!canPreview(category)) {
+      // Office documents: offer an on-demand PDF preview (LibreOffice on server).
+      if (isOfficeDoc && officeState === 'ready') {
+        return <iframe src={officeUrl} title={file.name} />;
+      }
       return (
         <div className="preview-card">
           <FileIcon category={category} size={72} className="big-ic" />
@@ -200,10 +228,30 @@ export default function PreviewModal({ file, onClose, locale, isFavorite, onTogg
           <div className="muted tiny" style={{ marginBottom: 20 }}>
             {(file.extension || '').toUpperCase()} · {formatBytes(file.sizeBytes, locale)}
           </div>
-          <p className="muted" style={{ marginTop: 0 }}>{t('preview.noPreviewHint')}</p>
-          <a className="btn btn-primary" href={downloadUrl}>
-            <Download size={18} /> {t('common.download')}
-          </a>
+          {isOfficeDoc && officeState === 'error' ? (
+            <p className="muted" style={{ marginTop: 0 }}>{t('preview2.officeUnavailable')}</p>
+          ) : (
+            <p className="muted" style={{ marginTop: 0 }}>{t('preview.noPreviewHint')}</p>
+          )}
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {isOfficeDoc && officeState !== 'error' && (
+              <button
+                className="btn"
+                onClick={loadOfficePreview}
+                disabled={officeState === 'loading'}
+              >
+                {officeState === 'loading' ? (
+                  <Loader2 size={18} className="spin" />
+                ) : (
+                  <Eye size={18} />
+                )}
+                {t('preview2.showOffice')}
+              </button>
+            )}
+            <a className="btn btn-primary" href={downloadUrl}>
+              <Download size={18} /> {t('common.download')}
+            </a>
+          </div>
         </div>
       );
     }

@@ -2,6 +2,7 @@
 
 const { query, queryOne, execute } = require('../db/pool');
 const AppError = require('../utils/AppError');
+const notification = require('./notification.service');
 
 function publicComment(c) {
   return {
@@ -25,7 +26,10 @@ async function listComments(fileId) {
 }
 
 async function addComment({ fileId, body, actor }) {
-  const file = await queryOne('SELECT id FROM files WHERE id = ? AND is_trashed = 0', [fileId]);
+  const file = await queryOne(
+    'SELECT id, uploaded_by, original_name FROM files WHERE id = ? AND is_trashed = 0',
+    [fileId]
+  );
   if (!file) throw AppError.notFound('File not found');
   const text = String(body || '').trim();
   if (!text) throw AppError.badRequest('Comment cannot be empty');
@@ -36,6 +40,15 @@ async function addComment({ fileId, body, actor }) {
     actor.id,
     text,
   ]);
+
+  // Notify the file's owner (unless they commented on their own file).
+  await notification.create({
+    userId: file.uploaded_by,
+    actorId: actor.id,
+    type: 'comment_added',
+    message: `${actor.username} прокомментировал ваш файл «${file.original_name}»`,
+    fileId,
+  });
   const row = await queryOne(
     `SELECT c.*, u.username FROM comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.id = ?`,
     [r.insertId]
