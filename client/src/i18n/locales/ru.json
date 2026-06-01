@@ -189,7 +189,8 @@
     "emptyHint": "Добавьте, что вы сделали — по пунктам",
     "entry": "Запись",
     "allPdf": "Все · PDF",
-    "allWord": "Все · Word"
+    "allWord": "Все · Word",
+    "exportFallback": "LibreOffice не установлен — скачиваю HTML (откроется в Word)"
   },
   "pwa": {
     "newVersion": "Доступна новая версия",

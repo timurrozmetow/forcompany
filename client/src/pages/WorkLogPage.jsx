@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { workLogApi, userApi } from '../api';
+import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { formatDate } from '../utils/format';
@@ -123,18 +124,41 @@ export default function WorkLogPage() {
     }
   };
 
-  const exportLink = (format, allUsers = false) => {
+  const downloadBlob = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = workLogApi.exportUrl({
-      format,
-      userId: allUsers ? undefined : selectedUserId,
-      from: range.from,
-      to: range.to,
-    });
-    a.rel = 'noopener';
+    a.href = url;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
+  const exportLink = async (format, allUsers = false) => {
+    const params = { format, from: range.from, to: range.to };
+    if (!allUsers && selectedUserId) params.userId = selectedUserId;
+    const base = `worklog-${range.from}_${range.to}`;
+    try {
+      const res = await api.get('/worklogs/export', { params, responseType: 'blob' });
+      downloadBlob(res.data, `${base}.${format}`);
+    } catch (err) {
+      // 501 (no LibreOffice) -> fall back to HTML, which Word opens fine.
+      if (format !== 'html') {
+        toast.info(t('worklog.exportFallback'));
+        try {
+          const res = await api.get('/worklogs/export', {
+            params: { ...params, format: 'html' },
+            responseType: 'blob',
+          });
+          downloadBlob(res.data, `${base}.html`);
+        } catch (_) {
+          toast.error(t('toast.error'));
+        }
+      } else {
+        toast.error(t('toast.error'));
+      }
+    }
   };
 
   const selectedName =

@@ -189,7 +189,8 @@
     "emptyHint": "Yaptıklarınızı madde madde ekleyin",
     "entry": "Kayıt",
     "allPdf": "Tümü · PDF",
-    "allWord": "Tümü · Word"
+    "allWord": "Tümü · Word",
+    "exportFallback": "LibreOffice yok — HTML indiriliyor (Word'de açılır)"
   },
   "pwa": {
     "newVersion": "Yeni sürüm mevcut",
