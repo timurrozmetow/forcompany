@@ -110,8 +110,11 @@ export default function DrivePage() {
   };
 
   /* ------------------------------- loading ------------------------------ */
-  const load = useCallback(async () => {
-    setLoading(true);
+  // skeleton:true only for first load / folder navigation. Mutations call
+  // load() with no args -> refresh in place, no skeleton flash (no "jumping").
+  const load = useCallback(async (opts = {}) => {
+    const showSkeleton = !!opts.skeleton;
+    if (showSkeleton) setLoading(true);
     try {
       if (isSearching) {
         const res = await searchApi.query(searchQuery.trim());
@@ -132,12 +135,12 @@ export default function DrivePage() {
     } catch (err) {
       toast.error(err?.response?.data?.error?.message || t('toast.error'));
     } finally {
-      setLoading(false);
+      if (showSkeleton) setLoading(false);
     }
   }, [folderId, isSearching, searchQuery, t, toast]);
 
   useEffect(() => {
-    load();
+    load({ skeleton: true });
   }, [load]);
 
   useEffect(() => {

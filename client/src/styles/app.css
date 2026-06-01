@@ -18,6 +18,9 @@
 .app-content {
   flex: 1;
   overflow-y: auto;
+  /* Always reserve space for the scrollbar so content doesn't jump sideways
+     when its height changes (e.g. after creating a folder). */
+  scrollbar-gutter: stable;
   padding: 24px 28px 96px;
 }
 
@@ -1251,4 +1254,105 @@
 }
 .disk-meter > span.warn {
   background: linear-gradient(90deg, var(--warning), var(--danger));
+}
+
+/* ============================================================================
+   File-type tinted icons (Drive-like colored chips) — higher-quality look
+   ========================================================================== */
+.t-image   { --tint: #34c759; }
+.t-pdf     { --tint: #ff3b30; }
+.t-video   { --tint: #af52de; }
+.t-audio   { --tint: #ff2d55; }
+.t-doc     { --tint: #0071e3; }
+.t-sheet   { --tint: #30b85e; }
+.t-ppt     { --tint: #ff9500; }
+.t-archive { --tint: #8e8e93; }
+.t-text    { --tint: #5856d6; }
+.t-folder  { --tint: var(--accent); }
+.t-file    { --tint: #8e8e93; }
+
+/* Soft tint behind the grid thumbnail icon */
+.tile-thumb {
+  background: color-mix(in srgb, var(--tint, transparent) 12%, var(--surface-2));
+}
+/* Rounded colored chip behind the list-row icon */
+.ftype-chip {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--tint, var(--surface-hover)) 16%, transparent);
+}
+
+/* ============================================================================
+   Full responsive layer
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Tablets / small laptops */
+@media (max-width: 720px) {
+  .app-content { padding: 16px 14px 92px; }
+  .page-title { font-size: clamp(19px, 5.2vw, 24px); }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 10px; }
+  .tile { padding: 12px 10px 10px; border-radius: 16px; }
+  .tile-thumb { height: 78px; }
+  .ftype-chip { width: 34px; height: 34px; }
+  .toolbar { gap: 8px; margin-bottom: 14px; }
+  .toolbar .btn { padding: 9px 12px; font-size: 13px; }
+  .selbar { padding: 9px 12px; gap: 8px; }
+  .selbar .btn { padding: 8px 10px; font-size: 13px; }
+  .table th,
+  .table td { padding: 10px 12px; font-size: 13px; }
+  .stat-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .stat-card { padding: 16px; }
+  .stat-card .num { font-size: 23px; }
+  .modal-title { font-size: 18px; }
+}
+
+/* Phones */
+@media (max-width: 460px) {
+  .grid { grid-template-columns: 1fr 1fr; gap: 9px; }
+  .header { gap: 8px; }
+  .header .avatar { width: 32px; height: 32px; }
+  .breadcrumbs { font-size: 13px; }
+  .breadcrumbs .crumb { max-width: 120px; padding: 5px 7px; }
+  .selbar .count { font-size: 13px; }
+  .page-title { margin-bottom: 12px; }
+}
+
+/* Native-feeling bottom-sheet modals on phones */
+@media (max-width: 600px) {
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  .modal,
+  .modal.wide {
+    max-width: 100%;
+    width: 100%;
+    border-radius: 22px 22px 0 0;
+    padding: 22px 18px calc(20px + env(safe-area-inset-bottom));
+    animation: sheetUp 0.3s var(--ease);
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+}
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* Comfortable touch targets on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .btn-icon { min-width: 40px; min-height: 40px; }
+  .ctx-item { padding: 12px 12px; }
+  .nav-item { padding: 12px; }
 }

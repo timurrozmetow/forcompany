@@ -8,9 +8,10 @@ import { fileApi } from '../api';
 
 function Thumb({ item, category }) {
   const [errored, setErrored] = useState(false);
+  const cat = item.type === 'folder' ? 'folder' : category;
   if (item.type === 'file' && category === 'image' && !errored) {
     return (
-      <div className="tile-thumb">
+      <div className={`tile-thumb t-${cat}`}>
         <img
           src={fileApi.thumbnailUrl(item.id)}
           alt={item.name}
@@ -21,8 +22,8 @@ function Thumb({ item, category }) {
     );
   }
   return (
-    <div className="tile-thumb">
-      <FileIcon category={item.type === 'folder' ? 'folder' : category} />
+    <div className={`tile-thumb t-${cat}`}>
+      <FileIcon category={cat} />
     </div>
   );
 }
@@ -186,7 +187,9 @@ export default function FileExplorer({
           >
             <div className="list-name">
               <SelectCheck selected={selectedKeys.has(k)} onToggle={() => onToggleSelect(item)} />
-              <FileIcon category={item.type === 'folder' ? 'folder' : category} size={26} />
+              <span className={`ftype-chip t-${item.type === 'folder' ? 'folder' : category}`}>
+                <FileIcon category={item.type === 'folder' ? 'folder' : category} size={22} />
+              </span>
               <span className="label" title={item.name}>
                 {item.name}
               </span>
