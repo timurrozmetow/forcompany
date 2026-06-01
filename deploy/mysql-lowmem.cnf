@@ -1,0 +1,25 @@
+# ============================================================================
+#  Low-memory MySQL tuning for a 1 GB RAM VPS.
+#  Install:
+#     sudo cp deploy/mysql-lowmem.cnf /etc/mysql/mysql.conf.d/zz-lowmem.cnf
+#     sudo systemctl restart mysql
+#  Drops MySQL's RAM footprint from ~450MB to ~120-150MB.
+# ============================================================================
+[mysqld]
+# InnoDB buffer pool — the single biggest memory consumer. 128M is plenty
+# for a metadata-only DB (file BYTES live on disk, not in MySQL).
+innodb_buffer_pool_size      = 128M
+innodb_log_buffer_size       = 8M
+innodb_buffer_pool_instances = 1
+
+# Per-connection buffers kept small; few concurrent users expected.
+max_connections              = 40
+thread_cache_size            = 8
+sort_buffer_size             = 1M
+read_buffer_size             = 512K
+join_buffer_size             = 1M
+tmp_table_size               = 16M
+max_heap_table_size          = 16M
+
+# Disable the performance schema to free ~100-200MB of overhead.
+performance_schema           = OFF

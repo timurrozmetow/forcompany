@@ -1,0 +1,10 @@
+# Keep shell scripts and server config files LF so they work on the Linux VPS,
+# regardless of the developer's OS.
+*.sh        text eol=lf
+*.cnf       text eol=lf
+deploy/**   text eol=lf
+*.js        text
+*.jsx       text
+*.json      text
+*.css       text
+*.md        text
