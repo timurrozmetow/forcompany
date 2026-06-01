@@ -50,17 +50,28 @@ function resolveTargetUser(requester, userId) {
 }
 
 async function list({ requester, userId, from, to }) {
-  const targetUser = resolveTargetUser(requester, userId);
   const f = cleanDate(from, currentMonthRange().from);
   const t = cleanDate(to, currentMonthRange().to);
+
+  // Admin can request "all" -> entries of every user in the range.
+  const wantAll = requester.role === 'admin' && (userId === 'all' || userId === '*');
+  const where = ['wl.entry_date BETWEEN ? AND ?'];
+  const params = [f, t];
+  let targetUser = 'all';
+  if (!wantAll) {
+    targetUser = resolveTargetUser(requester, userId);
+    where.push('wl.user_id = ?');
+    params.push(targetUser);
+  }
+
   const rows = await query(
     `SELECT wl.*, u.username, a.username AS author_name
        FROM work_logs wl
        LEFT JOIN users u ON u.id = wl.user_id
        LEFT JOIN users a ON a.id = wl.author_id
-      WHERE wl.user_id = ? AND wl.entry_date BETWEEN ? AND ?
-      ORDER BY wl.entry_date DESC, wl.id ASC`,
-    [targetUser, f, t]
+      WHERE ${where.join(' AND ')}
+      ORDER BY u.username ASC, wl.entry_date DESC, wl.id ASC`,
+    params
   );
   return { entries: rows.map(publicEntry), from: f, to: t, userId: targetUser };
 }

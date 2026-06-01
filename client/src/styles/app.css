@@ -1404,6 +1404,13 @@
 /* ============================================================================
    Work log ("Что я сделал")
    ========================================================================== */
+.wl-user {
+  font-weight: 700;
+  font-size: 15px;
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--accent);
+}
 .wl-date {
   font-size: 12px;
   font-weight: 700;

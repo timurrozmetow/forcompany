@@ -81,17 +81,31 @@ export default function WorkLogPage() {
     load();
   }, [load]);
 
-  const grouped = useMemo(() => {
-    const map = new Map();
-    for (const e of data.entries) {
-      if (!map.has(e.date)) map.set(e.date, []);
-      map.get(e.date).push(e);
+  const isAll = selectedUserId === 'all';
+
+  // When viewing one user -> [{ username:null, days:[[date, entries]] }].
+  // When "all" -> one group per user, each with its days.
+  const groups = useMemo(() => {
+    if (isAll) {
+      const byUser = new Map();
+      for (const e of data.entries) {
+        if (!byUser.has(e.userId)) byUser.set(e.userId, { userId: e.userId, username: e.username, dates: new Map() });
+        const u = byUser.get(e.userId);
+        if (!u.dates.has(e.date)) u.dates.set(e.date, []);
+        u.dates.get(e.date).push(e);
+      }
+      return [...byUser.values()].map((u) => ({ userId: u.userId, username: u.username, days: [...u.dates.entries()] }));
     }
-    return [...map.entries()];
-  }, [data]);
+    const dates = new Map();
+    for (const e of data.entries) {
+      if (!dates.has(e.date)) dates.set(e.date, []);
+      dates.get(e.date).push(e);
+    }
+    return [{ userId: selectedUserId, username: null, days: [...dates.entries()] }];
+  }, [data, isAll, selectedUserId]);
 
   const addEntry = async () => {
-    if (!newContent.trim() || adding) return;
+    if (!newContent.trim() || adding || isAll) return;
     setAdding(true);
     try {
       await workLogApi.add({ userId: selectedUserId, content: newContent.trim(), entryDate: newDate });
@@ -137,7 +151,7 @@ export default function WorkLogPage() {
 
   const exportLink = async (format, allUsers = false) => {
     const params = { format, from: range.from, to: range.to };
-    if (!allUsers && selectedUserId) params.userId = selectedUserId;
+    if (!allUsers && !isAll && selectedUserId) params.userId = selectedUserId;
     const base = `worklog-${range.from}_${range.to}`;
     try {
       const res = await api.get('/worklogs/export', { params, responseType: 'blob' });
@@ -161,10 +175,11 @@ export default function WorkLogPage() {
     }
   };
 
-  const selectedName =
-    selectedUserId === user?.id
-      ? user?.username
-      : users.find((u) => u.id === Number(selectedUserId))?.username || '';
+  const selectedName = isAll
+    ? t('worklog.allUsers')
+    : selectedUserId === user?.id
+    ? user?.username
+    : users.find((u) => u.id === Number(selectedUserId))?.username || '';
 
   return (
     <div>
@@ -186,8 +201,12 @@ export default function WorkLogPage() {
             className="select"
             style={{ width: 'auto' }}
             value={selectedUserId}
-            onChange={(e) => setSelectedUserId(Number(e.target.value))}
+            onChange={(e) => {
+              const v = e.target.value;
+              setSelectedUserId(v === 'all' ? 'all' : Number(v));
+            }}
           >
+            <option value="all">{t('worklog.allUsers')}</option>
             {!users.some((u) => u.id === user?.id) && <option value={user?.id}>{user?.username}</option>}
             {users.map((u) => (
               <option key={u.id} value={u.id}>
@@ -204,34 +223,36 @@ export default function WorkLogPage() {
         </button>
       </div>
 
-      {/* Add entry */}
-      <div className="card" style={{ padding: 16, marginBottom: 18 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <input
-            className="input"
-            style={{ width: 'auto' }}
-            type="date"
-            value={newDate}
-            onChange={(e) => setNewDate(e.target.value)}
-          />
-          <input
-            className="input"
-            style={{ flex: 1, minWidth: 200 }}
-            placeholder={t('worklog.placeholder')}
-            value={newContent}
-            onChange={(e) => setNewContent(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addEntry()}
-          />
-          <button className="btn btn-primary" onClick={addEntry} disabled={adding || !newContent.trim()}>
-            {adding ? <Loader2 size={17} className="spin" /> : <Plus size={17} />} {t('worklog.add')}
-          </button>
-        </div>
-        {isAdmin && selectedUserId !== user?.id && (
-          <div className="muted tiny" style={{ marginTop: 8 }}>
-            {t('worklog.addingFor')}: <strong>{selectedName}</strong>
+      {/* Add entry (hidden in "all users" view) */}
+      {!isAll && (
+        <div className="card" style={{ padding: 16, marginBottom: 18 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <input
+              className="input"
+              style={{ width: 'auto' }}
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
+            />
+            <input
+              className="input"
+              style={{ flex: 1, minWidth: 200 }}
+              placeholder={t('worklog.placeholder')}
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addEntry()}
+            />
+            <button className="btn btn-primary" onClick={addEntry} disabled={adding || !newContent.trim()}>
+              {adding ? <Loader2 size={17} className="spin" /> : <Plus size={17} />} {t('worklog.add')}
+            </button>
           </div>
-        )}
-      </div>
+          {isAdmin && selectedUserId !== user?.id && (
+            <div className="muted tiny" style={{ marginTop: 8 }}>
+              {t('worklog.addingFor')}: <strong>{selectedName}</strong>
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 18, alignItems: 'start' }} className="wl-grid">
         {/* Entries */}
@@ -244,27 +265,32 @@ export default function WorkLogPage() {
               <div className="loading-row">
                 <Loader2 size={22} className="spin" style={{ color: 'var(--accent)' }} />
               </div>
-            ) : grouped.length === 0 ? (
+            ) : !data.entries || data.entries.length === 0 ? (
               <EmptyState icon={<ClipboardList size={28} />} title={t('worklog.empty')} hint={t('worklog.emptyHint')} />
             ) : (
-              grouped.map(([date, items]) => (
-                <div key={date} style={{ marginBottom: 14 }}>
-                  <div className="wl-date">{formatDate(date, locale)}</div>
-                  <ol className="wl-list">
-                    {items.map((e) => (
-                      <li key={e.id} className="wl-item">
-                        <span className="wl-text">{e.content}</span>
-                        <span className="wl-actions">
-                          <button className="btn-icon" onClick={() => setEditEntry(e)} aria-label="edit">
-                            <Pencil size={15} />
-                          </button>
-                          <button className="btn-icon" onClick={() => setDelEntry(e)} aria-label="delete">
-                            <Trash2 size={15} style={{ color: 'var(--danger)' }} />
-                          </button>
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
+              groups.map((group) => (
+                <div key={group.userId} style={{ marginBottom: group.username ? 18 : 0 }}>
+                  {group.username && <div className="wl-user">{group.username}</div>}
+                  {group.days.map(([date, items]) => (
+                    <div key={date} style={{ marginBottom: 14 }}>
+                      <div className="wl-date">{formatDate(date, locale)}</div>
+                      <ol className="wl-list">
+                        {items.map((e) => (
+                          <li key={e.id} className="wl-item">
+                            <span className="wl-text">{e.content}</span>
+                            <span className="wl-actions">
+                              <button className="btn-icon" onClick={() => setEditEntry(e)} aria-label="edit">
+                                <Pencil size={15} />
+                              </button>
+                              <button className="btn-icon" onClick={() => setDelEntry(e)} aria-label="delete">
+                                <Trash2 size={15} style={{ color: 'var(--danger)' }} />
+                              </button>
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  ))}
                 </div>
               ))
             )}

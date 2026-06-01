@@ -176,6 +176,7 @@
   },
   "worklog": {
     "title": "İş günlüğü",
+    "allUsers": "Tüm çalışanlar",
     "placeholder": "Ne yaptın? (örn: 5 firmadan boiler fiyatı buldum)",
     "add": "Ekle",
     "added": "Kayıt eklendi",
