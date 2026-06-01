@@ -1,11 +1,15 @@
 'use strict';
 
 const { query } = require('../db/pool');
+const logger = require('../utils/logger');
 const { publicFile } = require('./file.service');
 const { publicFolder } = require('./folder.service');
 
 /**
- * Case-insensitive name search across active (non-trashed) folders and files.
+ * Search across active (non-trashed) folders and files.
+ * Files are matched by full-text (name + extracted content) with a graceful
+ * fallback to a plain name LIKE — so search keeps working even if the full-text
+ * index isn't present (e.g. migration_v2 not applied yet) instead of 500-ing.
  */
 async function search(qRaw) {
   const q = String(qRaw || '').trim();
@@ -14,8 +18,7 @@ async function search(qRaw) {
 
   const like = `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`;
 
-  // Build a BOOLEAN-mode query with prefix matching for each term, e.g.
-  // "year report" -> "+year* +report*". Strip operator chars.
+  // BOOLEAN-mode query with prefix matching, e.g. "year report" -> "+year* +report*".
   const booleanQuery = q
     .split(/\s+/)
     .map((term) => term.replace(/[+\-><()~*"@]/g, ''))
@@ -33,27 +36,38 @@ async function search(qRaw) {
     [like]
   );
 
-  // Full-text match on name + extracted content, falling back to LIKE on the
-  // name so short queries (< full-text min token length) still work.
-  const useFulltext = booleanQuery.length > 0;
-  const files = await query(
-    `SELECT f.*, u.username AS uploaded_by_name,
-            ${useFulltext
-              ? "MATCH(f.original_name, f.text_content) AGAINST (? IN BOOLEAN MODE)"
-              : '0'} AS score
+  const LIKE_ONLY_SQL = `SELECT f.*, u.username AS uploaded_by_name, 0 AS score
        FROM files f
        LEFT JOIN users u ON u.id = f.uploaded_by
-      WHERE f.is_trashed = 0
-        AND (
-          ${useFulltext
-            ? "MATCH(f.original_name, f.text_content) AGAINST (? IN BOOLEAN MODE) OR "
-            : ''}
-          f.original_name LIKE ? ESCAPE '\\'
-        )
-      ORDER BY score DESC, f.original_name ASC
-      LIMIT 200`,
-    useFulltext ? [booleanQuery, booleanQuery, like] : [like]
-  );
+      WHERE f.is_trashed = 0 AND f.original_name LIKE ? ESCAPE '\\'
+      ORDER BY f.original_name ASC
+      LIMIT 200`;
+
+  let files;
+  if (booleanQuery.length > 0) {
+    try {
+      files = await query(
+        `SELECT f.*, u.username AS uploaded_by_name,
+                MATCH(f.original_name, f.text_content) AGAINST (? IN BOOLEAN MODE) AS score
+           FROM files f
+           LEFT JOIN users u ON u.id = f.uploaded_by
+          WHERE f.is_trashed = 0
+            AND (
+              MATCH(f.original_name, f.text_content) AGAINST (? IN BOOLEAN MODE)
+              OR f.original_name LIKE ? ESCAPE '\\'
+            )
+          ORDER BY score DESC, f.original_name ASC
+          LIMIT 200`,
+        [booleanQuery, booleanQuery, like]
+      );
+    } catch (err) {
+      // Most likely the full-text column/index is missing (run `npm run migrate:v2`).
+      logger.warn('Full-text search unavailable, falling back to name search:', err.message);
+      files = await query(LIKE_ONLY_SQL, [like]);
+    }
+  } else {
+    files = await query(LIKE_ONLY_SQL, [like]);
+  }
 
   return {
     folders: folders.map(publicFolder),
