@@ -39,12 +39,16 @@ export function formatDateTime(dateStr, locale = 'ru') {
 export function relativeTime(dateStr, locale = 'ru') {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
-  const diff = (Date.now() - d.getTime()) / 1000;
+  if (Number.isNaN(d.getTime())) return '—';
+  const diff = (Date.now() - d.getTime()) / 1000; // seconds; > 0 means in the past
   const rtf = new Intl.RelativeTimeFormat(locale === 'tr' ? 'tr' : 'ru', { numeric: 'auto' });
-  if (diff < 60) return rtf.format(-Math.floor(diff), 'second');
-  if (diff < 3600) return rtf.format(-Math.floor(diff / 60), 'minute');
-  if (diff < 86400) return rtf.format(-Math.floor(diff / 3600), 'hour');
-  if (diff < 2592000) return rtf.format(-Math.floor(diff / 86400), 'day');
+
+  // Under a minute (incl. timestamps that land slightly in the FUTURE because
+  // of a server/client clock skew) -> "just now". Never show raw seconds.
+  if (diff < 60) return locale === 'tr' ? 'az önce' : 'только что';
+  if (diff < 3600) return rtf.format(-Math.round(diff / 60), 'minute');
+  if (diff < 86400) return rtf.format(-Math.round(diff / 3600), 'hour');
+  if (diff < 2592000) return rtf.format(-Math.round(diff / 86400), 'day');
   return formatDate(dateStr, locale);
 }
 
