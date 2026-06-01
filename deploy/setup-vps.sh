@@ -59,8 +59,8 @@ $SUDO apt-get install -y mysql-server
 $SUDO systemctl enable --now mysql
 $SUDO mysql <<SQL
 CREATE DATABASE IF NOT EXISTS company_drive CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS 'drive'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
-ALTER USER 'drive'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
+CREATE USER IF NOT EXISTS 'drive'@'localhost' IDENTIFIED BY 'new_passowrd';
+ALTER USER 'drive'@'localhost' IDENTIFIED BY 'new_passowrd';
 GRANT ALL PRIVILEGES ON company_drive.* TO 'drive'@'localhost';
 FLUSH PRIVILEGES;
 SQL
