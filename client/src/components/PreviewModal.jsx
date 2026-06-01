@@ -1,17 +1,158 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Download, Loader2 } from 'lucide-react';
+import { X, Download, Loader2, Star, Info, Tag as TagIcon, Send, Trash2, Plus } from 'lucide-react';
 import FileIcon from './FileIcon';
 import api from '../api/client';
-import { fileApi } from '../api';
+import { fileApi, tagApi, commentApi } from '../api';
+import { useAuth } from '../context/AuthContext';
 import { categorize, canPreview } from '../utils/fileType';
-import { formatBytes } from '../utils/format';
+import { formatBytes, formatDateTime, initials } from '../utils/format';
 
-export default function PreviewModal({ file, onClose, locale }) {
+function InfoPanel({ file, locale }) {
+  const { t } = useTranslation();
+  const { user, isAdmin } = useAuth();
+  const [tags, setTags] = useState([]);
+  const [comments, setComments] = useState([]);
+  const [newTag, setNewTag] = useState('');
+  const [newComment, setNewComment] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const reloadTags = useCallback(() => tagApi.ofFile(file.id).then(setTags).catch(() => {}), [file.id]);
+  const reloadComments = useCallback(
+    () => commentApi.list(file.id).then(setComments).catch(() => {}),
+    [file.id]
+  );
+
+  useEffect(() => {
+    reloadTags();
+    reloadComments();
+  }, [reloadTags, reloadComments]);
+
+  const addTag = async () => {
+    if (!newTag.trim()) return;
+    try {
+      const updated = await tagApi.attach(file.id, { name: newTag.trim() });
+      setTags(updated);
+      setNewTag('');
+    } catch (_) {
+      /* ignore */
+    }
+  };
+  const removeTag = async (tagId) => {
+    try {
+      setTags(await tagApi.detach(file.id, tagId));
+    } catch (_) {
+      /* ignore */
+    }
+  };
+  const addComment = async () => {
+    if (!newComment.trim() || busy) return;
+    setBusy(true);
+    try {
+      const c = await commentApi.add(file.id, newComment.trim());
+      setComments((prev) => [...prev, c]);
+      setNewComment('');
+    } catch (_) {
+      /* ignore */
+    } finally {
+      setBusy(false);
+    }
+  };
+  const removeComment = async (id) => {
+    try {
+      await commentApi.remove(id);
+      setComments((prev) => prev.filter((c) => c.id !== id));
+    } catch (_) {
+      /* ignore */
+    }
+  };
+
+  return (
+    <aside className="preview-info">
+      <div className="pi-section">
+        <div className="pi-title">
+          <TagIcon size={15} /> {t('tags.title')}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+          {tags.length === 0 && <span className="muted tiny">{t('tags.none')}</span>}
+          {tags.map((tg) => (
+            <span className="tag-chip" key={tg.id}>
+              <span className="dot" style={tg.color ? { background: tg.color } : undefined} />
+              {tg.name}
+              <button onClick={() => removeTag(tg.id)} aria-label="remove">
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            className="input"
+            style={{ padding: '8px 10px' }}
+            value={newTag}
+            placeholder={t('tags.add')}
+            onChange={(e) => setNewTag(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addTag()}
+          />
+          <button className="btn-icon" onClick={addTag} aria-label="add tag">
+            <Plus size={18} />
+          </button>
+        </div>
+      </div>
+
+      <div className="pi-section" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div className="pi-title">{t('comments.title')}</div>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 80 }}>
+          {comments.length === 0 && <span className="muted tiny">{t('comments.none')}</span>}
+          {comments.map((c) => (
+            <div className="comment" key={c.id}>
+              <div className="avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
+                {initials(c.username)}
+              </div>
+              <div className="body">
+                <div className="head">
+                  <span className="name">{c.username || '—'}</span>
+                  <span className="muted tiny">{formatDateTime(c.createdAt, locale)}</span>
+                  {(isAdmin || c.userId === user?.id) && (
+                    <button
+                      className="btn-icon"
+                      style={{ marginLeft: 'auto', padding: 4 }}
+                      onClick={() => removeComment(c.id)}
+                      aria-label="delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+                <div className="text">{c.body}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+          <input
+            className="input"
+            style={{ padding: '8px 10px' }}
+            value={newComment}
+            placeholder={t('comments.add')}
+            onChange={(e) => setNewComment(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addComment()}
+          />
+          <button className="btn-icon" onClick={addComment} disabled={busy} aria-label="send">
+            <Send size={18} />
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+export default function PreviewModal({ file, onClose, locale, isFavorite, onToggleFavorite }) {
   const { t } = useTranslation();
   const [textContent, setTextContent] = useState(null);
   const [loadingText, setLoadingText] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const category = file ? categorize(file) : 'file';
 
@@ -82,8 +223,7 @@ export default function PreviewModal({ file, onClose, locale }) {
       case 'pdf':
         return <iframe src={previewUrl} title={file.name} />;
       case 'text':
-        if (loadingText)
-          return <Loader2 size={26} className="spin" style={{ color: '#fff' }} />;
+        if (loadingText) return <Loader2 size={26} className="spin" style={{ color: '#fff' }} />;
         if (failed) return <pre>{t('preview.noPreview')}</pre>;
         return <pre>{textContent}</pre>;
       default:
@@ -92,11 +232,29 @@ export default function PreviewModal({ file, onClose, locale }) {
   };
 
   return (
-    <div className="preview-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="preview-overlay">
       <div className="preview-bar">
         <FileIcon category={category} size={22} />
         <span className="title">{file.name}</span>
         <span className="spacer" />
+        {onToggleFavorite && (
+          <button
+            className="btn-icon"
+            onClick={onToggleFavorite}
+            title={t('favorites.add')}
+            style={{ color: isFavorite ? 'var(--warning)' : undefined }}
+          >
+            <Star size={20} fill={isFavorite ? 'currentColor' : 'none'} />
+          </button>
+        )}
+        <button
+          className="btn-icon"
+          onClick={() => setInfoOpen((o) => !o)}
+          title={t('comments.title')}
+          style={{ color: infoOpen ? 'var(--accent)' : undefined }}
+        >
+          <Info size={20} />
+        </button>
         <a className="btn-icon" href={downloadUrl} title={t('common.download')}>
           <Download size={20} />
         </a>
@@ -104,8 +262,11 @@ export default function PreviewModal({ file, onClose, locale }) {
           <X size={22} />
         </button>
       </div>
-      <div className="preview-body" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-        {renderBody()}
+      <div className="preview-main">
+        <div className="preview-body" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+          {renderBody()}
+        </div>
+        {infoOpen && <InfoPanel file={file} locale={locale} />}
       </div>
     </div>
   );

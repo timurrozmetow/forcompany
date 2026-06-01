@@ -6,6 +6,8 @@ import AppLayout from './layouts/AppLayout';
 import LoginPage from './pages/LoginPage';
 import DrivePage from './pages/DrivePage';
 import TrashPage from './pages/TrashPage';
+import FavoritesPage from './pages/FavoritesPage';
+import RecentPage from './pages/RecentPage';
 import SettingsPage from './pages/SettingsPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
@@ -34,6 +36,8 @@ export default function App() {
         <Route path="/" element={<Navigate to="/drive" replace />} />
         <Route path="/drive" element={<DrivePage />} />
         <Route path="/drive/folder/:id" element={<DrivePage />} />
+        <Route path="/favorites" element={<FavoritesPage />} />
+        <Route path="/recent" element={<RecentPage />} />
         <Route path="/trash" element={<TrashPage />} />
         <Route path="/settings" element={<SettingsPage />} />
 

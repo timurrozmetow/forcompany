@@ -2,6 +2,7 @@
 
 const asyncHandler = require('../utils/asyncHandler');
 const chunkUpload = require('../services/chunkUpload.service');
+const fileService = require('../services/file.service');
 
 const init = asyncHandler(async (req, res) => {
   const { name, size, folderId, mimeType, chunkSize } = req.body || {};
@@ -29,6 +30,15 @@ const chunk = asyncHandler(async (req, res) => {
 
 const complete = asyncHandler(async (req, res) => {
   const file = await chunkUpload.complete(req.params.uploadId, req.user, req.context);
+  if (req.query.replace === '1' || req.query.replace === 'true') {
+    await fileService.replaceOlderVersions({
+      folderId: file.folderId,
+      name: file.name,
+      keepFileId: file.id,
+      actor: req.user,
+      context: req.context,
+    });
+  }
   res.status(201).json({ file });
 });
 

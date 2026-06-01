@@ -6,6 +6,7 @@ const { resolveStoragePath } = require('../utils/storagePath');
 const AppError = require('../utils/AppError');
 const activityLog = require('./activityLog.service');
 const folderService = require('./folder.service');
+const textExtract = require('./textExtract.service');
 
 function publicFile(f) {
   return {
@@ -31,23 +32,85 @@ async function getActiveFileOrThrow(id) {
 }
 
 /**
- * List active files in a folder (null = root).
+ * List active files in a folder (null = root), paginated.
+ * Returns { files, total, limit, offset }.
  */
-async function listFiles(folderIdRaw) {
+async function listFiles(folderIdRaw, { limit, offset } = {}) {
   const folderId = parseOptionalId(folderIdRaw);
   if (folderId !== null) {
     await folderService.getActiveFolderOrThrow(folderId);
   }
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 500);
+  const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);
+  const where = folderId === null ? 'f.folder_id IS NULL' : 'f.folder_id = ?';
+  const params = folderId === null ? [] : [folderId];
+
   const rows = await query(
     `SELECT f.*, u.username AS uploaded_by_name
        FROM files f
        LEFT JOIN users u ON u.id = f.uploaded_by
-      WHERE f.is_trashed = 0
-        AND ${folderId === null ? 'f.folder_id IS NULL' : 'f.folder_id = ?'}
-      ORDER BY f.original_name ASC`,
-    folderId === null ? [] : [folderId]
+      WHERE f.is_trashed = 0 AND ${where}
+      ORDER BY f.original_name ASC
+      LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+    params
   );
-  return rows.map(publicFile);
+  const countRow = await query(
+    `SELECT COUNT(*) AS total FROM files f WHERE f.is_trashed = 0 AND ${where}`,
+    params
+  );
+  return {
+    files: rows.map(publicFile),
+    total: Number(countRow[0]?.total || 0),
+    limit: safeLimit,
+    offset: safeOffset,
+  };
+}
+
+/**
+ * Returns the subset of `names` that already exist (active) in the folder.
+ */
+async function checkConflicts(folderIdRaw, names) {
+  const folderId = parseOptionalId(folderIdRaw);
+  const list = (Array.isArray(names) ? names : []).map((n) => String(n)).filter(Boolean).slice(0, 500);
+  if (!list.length) return [];
+  const placeholders = list.map(() => '?').join(',');
+  const where = folderId === null ? 'folder_id IS NULL' : 'folder_id = ?';
+  const params = folderId === null ? [...list] : [folderId, ...list];
+  const rows = await query(
+    `SELECT DISTINCT original_name FROM files
+      WHERE is_trashed = 0 AND ${where} AND original_name IN (${placeholders})`,
+    params
+  );
+  return rows.map((r) => r.original_name);
+}
+
+/**
+ * "Replace" semantics: move older active files with the same name in the same
+ * folder to trash, keeping the just-uploaded one. Old versions stay recoverable.
+ */
+async function replaceOlderVersions({ folderId, name, keepFileId, actor, context }) {
+  const where = folderId === null || folderId === undefined ? 'folder_id IS NULL' : 'folder_id = ?';
+  const params = folderId === null || folderId === undefined ? [] : [folderId];
+  const olds = await query(
+    `SELECT id FROM files
+      WHERE is_trashed = 0 AND ${where} AND original_name = ? AND id <> ?`,
+    [...params, name, keepFileId]
+  );
+  for (const o of olds) {
+    await execute(
+      'UPDATE files SET is_trashed = 1, trashed_by = ?, trashed_at = NOW() WHERE id = ?',
+      [actor.id, o.id]
+    );
+    await activityLog.log({
+      userId: actor.id,
+      action: activityLog.ACTIONS.TRASH_FILE,
+      targetType: 'file',
+      targetId: o.id,
+      oldValue: { name, replacedBy: keepFileId },
+      context,
+    });
+  }
+  return olds.length;
 }
 
 async function getFilePublic(id) {
@@ -99,6 +162,11 @@ async function createFileRecord({
     newValue: { name: originalName, sizeBytes, folderId },
     context,
   });
+
+  // Extract text for full-text search in the background (don't block upload).
+  textExtract
+    .indexFile(result.insertId, storagePath, mimeType, extension, sizeBytes)
+    .catch(() => {});
 
   return getFilePublic(result.insertId);
 }
@@ -180,6 +248,8 @@ async function resolveForStreaming(id) {
 module.exports = {
   publicFile,
   listFiles,
+  checkConflicts,
+  replaceOlderVersions,
   getFilePublic,
   getActiveFileOrThrow,
   createFileRecord,

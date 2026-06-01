@@ -5,6 +5,7 @@ const { deleteFromDisk } = require('../utils/storagePath');
 const { removeThumb } = require('./thumbnail.service');
 const AppError = require('../utils/AppError');
 const activityLog = require('./activityLog.service');
+const notify = require('./notify.service');
 const logger = require('../utils/logger');
 
 /**
@@ -158,6 +159,7 @@ async function permanentDeleteFile({ id, actor, context }) {
     oldValue: { name: file.original_name, sizeBytes: Number(file.size_bytes) },
     context,
   });
+  notify.event('permanent_delete_file', { actor, target: file.original_name });
 
   return { success: true };
 }
@@ -200,6 +202,11 @@ async function permanentDeleteFolder({ id, actor, context }) {
     targetId: id,
     oldValue: { name: folder.name, filesRemovedCount: filesToDelete.length },
     context,
+  });
+  notify.event('permanent_delete_folder', {
+    actor,
+    target: folder.name,
+    detail: `Файлов удалено: ${filesToDelete.length}`,
   });
 
   return { success: true, filesRemoved: filesToDelete.length };

@@ -16,8 +16,17 @@ const { assertEnoughSpace } = require('../utils/diskSpace');
 const logger = require('../utils/logger');
 
 const list = asyncHandler(async (req, res) => {
-  const files = await fileService.listFiles(req.query.folderId);
-  res.json({ files });
+  const result = await fileService.listFiles(req.query.folderId, {
+    limit: req.query.limit,
+    offset: req.query.offset,
+  });
+  res.json(result); // { files, total, limit, offset }
+});
+
+const checkConflicts = asyncHandler(async (req, res) => {
+  const { folderId, names } = req.body || {};
+  const conflicts = await fileService.checkConflicts(folderId, names);
+  res.json({ conflicts });
 });
 
 /**
@@ -43,6 +52,7 @@ const upload = asyncHandler(async (req, res) => {
     maxBytes: config.storage.maxFileSizeBytes,
   });
 
+  const replace = req.query.replace === '1' || req.query.replace === 'true';
   const created = [];
   for (const meta of persisted) {
     try {
@@ -57,6 +67,15 @@ const upload = asyncHandler(async (req, res) => {
         actor: req.user,
         context: req.context,
       });
+      if (replace) {
+        await fileService.replaceOlderVersions({
+          folderId,
+          name: meta.originalName,
+          keepFileId: file.id,
+          actor: req.user,
+          context: req.context,
+        });
+      }
       created.push(file);
     } catch (err) {
       // DB insert failed -> remove the orphaned bytes from disk.
@@ -165,4 +184,4 @@ const trash = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
-module.exports = { list, upload, download, preview, thumbnail, rename, move, trash };
+module.exports = { list, checkConflicts, upload, download, preview, thumbnail, rename, move, trash };

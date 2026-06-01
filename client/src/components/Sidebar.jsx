@@ -10,6 +10,8 @@ import {
   LayoutDashboard,
   LogOut,
   Cloud,
+  Star,
+  Clock,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -46,6 +48,8 @@ export default function Sidebar({ open, onClose }) {
 
       <div className="nav-section-label">{t('nav.main')}</div>
       {item('/drive', HardDrive, t('nav.drive'))}
+      {item('/favorites', Star, t('nav.favorites'))}
+      {item('/recent', Clock, t('nav.recent'))}
       {item('/trash', Trash2, t('nav.trash'))}
 
       {isAdmin && (

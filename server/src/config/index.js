@@ -66,6 +66,34 @@ const config = {
       .map((s) => s.trim())
       .filter(Boolean),
   },
+
+  // Warn (banner) when free disk drops below this fraction of total.
+  lowSpaceWarnRatio: parseFloat(process.env.LOW_SPACE_WARN_RATIO || '0.1'),
+
+  // Max bytes of extracted text stored per file for full-text search.
+  fulltextMaxChars: int('FULLTEXT_MAX_CHARS', 200000),
+
+  notify: {
+    // Which activity actions trigger a notification (comma separated).
+    events: (process.env.NOTIFY_EVENTS ||
+      'create_user,delete_user,block_user,permanent_delete_file,permanent_delete_folder')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+    telegram: {
+      token: process.env.TELEGRAM_BOT_TOKEN || '',
+      chatId: process.env.TELEGRAM_CHAT_ID || '',
+    },
+    email: {
+      host: process.env.SMTP_HOST || '',
+      port: int('SMTP_PORT', 587),
+      secure: bool('SMTP_SECURE', false),
+      user: process.env.SMTP_USER || '',
+      pass: process.env.SMTP_PASS || '',
+      from: process.env.NOTIFY_EMAIL_FROM || process.env.SMTP_USER || '',
+      to: process.env.NOTIFY_EMAIL_TO || '',
+    },
+  },
 };
 
 module.exports = config;

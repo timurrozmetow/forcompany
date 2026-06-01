@@ -15,10 +15,12 @@ import {
   Inbox,
   Search as SearchIcon,
   FileArchive,
+  Star,
   X,
+  Loader2,
 } from 'lucide-react';
 
-import { folderApi, fileApi, searchApi } from '../api';
+import { folderApi, fileApi, searchApi, favoriteApi } from '../api';
 import { useToast } from '../context/ToastContext';
 import { categorize } from '../utils/fileType';
 import { useUploader } from '../hooks/useUploader';
@@ -32,9 +34,12 @@ import InputModal from '../components/InputModal';
 import MoveModal from '../components/MoveModal';
 import PreviewModal from '../components/PreviewModal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import ConflictModal from '../components/ConflictModal';
+import LowSpaceBanner from '../components/LowSpaceBanner';
 import UploadPanel from '../components/UploadPanel';
 
 const VIEW_KEY = 'cd_view';
+const PAGE = 100;
 
 function sortEntries(folders, files, sort) {
   const dir = sort.dir === 'asc' ? 1 : -1;
@@ -70,12 +75,14 @@ export default function DrivePage() {
 
   const [folders, setFolders] = useState([]);
   const [files, setFiles] = useState([]);
+  const [filesTotal, setFilesTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [crumbs, setCrumbs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState(() => localStorage.getItem(VIEW_KEY) || 'grid');
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' });
 
-  const [menu, setMenu] = useState(null); // { x, y, item }
+  const [menu, setMenu] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [renameItem, setRenameItem] = useState(null);
   const [moveItem, setMoveItem] = useState(null);
@@ -85,19 +92,24 @@ export default function DrivePage() {
   const [dragging, setDragging] = useState(false);
 
   const [selectedKeys, setSelectedKeys] = useState(() => new Set());
+  const [favoriteKeys, setFavoriteKeys] = useState(() => new Set());
   const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [conflictState, setConflictState] = useState(null); // { names, files }
 
   const fileInputRef = useRef(null);
   const dragCounter = useRef(0);
+  const sentinelRef = useRef(null);
   const uploader = useUploader();
 
+  const keyOf = (item) => `${item.type}-${item.id}`;
   const setViewPersist = (v) => {
     setView(v);
     localStorage.setItem(VIEW_KEY, v);
   };
 
+  /* ------------------------------- loading ------------------------------ */
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -105,15 +117,17 @@ export default function DrivePage() {
         const res = await searchApi.query(searchQuery.trim());
         setFolders(res.folders);
         setFiles(res.files);
+        setFilesTotal(res.files.length);
         setCrumbs([]);
       } else {
-        const [folderData, fileList] = await Promise.all([
+        const [folderData, fileData] = await Promise.all([
           folderApi.list(folderId),
-          fileApi.list(folderId),
+          fileApi.list(folderId, { limit: PAGE, offset: 0 }),
         ]);
         setFolders(folderData.folders);
         setCrumbs(folderData.breadcrumbs || []);
-        setFiles(fileList);
+        setFiles(fileData.files);
+        setFilesTotal(fileData.total);
       }
     } catch (err) {
       toast.error(err?.response?.data?.error?.message || t('toast.error'));
@@ -126,14 +140,51 @@ export default function DrivePage() {
     load();
   }, [load]);
 
-  // Clear selection whenever we change folder or enter/exit search.
   useEffect(() => {
     setSelectedKeys(new Set());
   }, [folderId, searchQuery]);
 
+  const loadFavorites = useCallback(async () => {
+    try {
+      const ids = await favoriteApi.ids();
+      const s = new Set();
+      ids.files.forEach((id) => s.add(`file-${id}`));
+      ids.folders.forEach((id) => s.add(`folder-${id}`));
+      setFavoriteKeys(s);
+    } catch (_) {
+      /* ignore */
+    }
+  }, []);
+  useEffect(() => {
+    loadFavorites();
+  }, [loadFavorites]);
+
+  const loadMore = useCallback(async () => {
+    if (isSearching || loadingMore || files.length >= filesTotal) return;
+    setLoadingMore(true);
+    try {
+      const data = await fileApi.list(folderId, { offset: files.length, limit: PAGE });
+      setFiles((prev) => [...prev, ...data.files]);
+      setFilesTotal(data.total);
+    } catch (_) {
+      /* ignore */
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [isSearching, loadingMore, files.length, filesTotal, folderId]);
+
+  // Infinite scroll sentinel.
+  useEffect(() => {
+    if (isSearching) return undefined;
+    const el = sentinelRef.current;
+    if (!el) return undefined;
+    const obs = new IntersectionObserver((es) => es[0]?.isIntersecting && loadMore());
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loadMore, isSearching, files.length]);
+
   const entries = useMemo(() => sortEntries(folders, files, sort), [folders, files, sort]);
 
-  const keyOf = (item) => `${item.type}-${item.id}`;
   const toggleSelect = (item) =>
     setSelectedKeys((prev) => {
       const next = new Set(prev);
@@ -152,17 +203,11 @@ export default function DrivePage() {
     if (item.type === 'folder') navigate(`/drive/folder/${item.id}`);
     else setPreviewFile(item);
   };
-
-  const onSort = (key) =>
-    setSort((s) => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }));
-
+  const onSort = (key) => setSort((s) => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }));
   const openMenu = (x, y, item) => setMenu({ x, y, item });
 
-  /* ----------------------------- actions -------------------------------- */
+  /* ------------------------------- actions ------------------------------ */
   const downloadFile = (item) => {
-    // No `download` attribute set on purpose: the server sends
-    // Content-Disposition with the ORIGINAL filename, so the file keeps its
-    // exact name (incl. Cyrillic/Turkish) on download.
     const a = document.createElement('a');
     a.href = fileApi.downloadUrl(item.id);
     a.rel = 'noopener';
@@ -170,6 +215,36 @@ export default function DrivePage() {
     a.click();
     a.remove();
     toast.info(`${t('common.download')}: ${item.name}`);
+  };
+
+  const downloadFolderZip = (item) => {
+    const a = document.createElement('a');
+    a.href = fileApi.folderZipUrl(item.id);
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast.info(`${t('common.download')}: ${item.name}.zip`);
+  };
+
+  const toggleFavorite = async (item) => {
+    const k = keyOf(item);
+    const target = item.type === 'file' ? { fileId: item.id } : { folderId: item.id };
+    try {
+      if (favoriteKeys.has(k)) {
+        await favoriteApi.remove(target);
+        setFavoriteKeys((prev) => {
+          const n = new Set(prev);
+          n.delete(k);
+          return n;
+        });
+      } else {
+        await favoriteApi.add(target);
+        setFavoriteKeys((prev) => new Set(prev).add(k));
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.error?.message || t('toast.error'));
+    }
   };
 
   const doRename = async (name) => {
@@ -210,16 +285,7 @@ export default function DrivePage() {
     }
   };
 
-  const downloadFolderZip = (item) => {
-    const a = document.createElement('a');
-    a.href = fileApi.folderZipUrl(item.id);
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    toast.info(`${t('common.download')}: ${item.name}.zip`);
-  };
-
+  /* ----------------------------- bulk + dnd ----------------------------- */
   const doBulkMove = async (targetId) => {
     setBulkBusy(true);
     try {
@@ -275,7 +341,33 @@ export default function DrivePage() {
     }
   };
 
+  // Drag a file/folder onto a folder to move it (moves the whole selection if
+  // the dragged item is part of it).
+  const onDropMove = async (targetFolder, draggedKey) => {
+    const movingKeys =
+      selectedKeys.has(draggedKey) && selectedKeys.size > 0 ? [...selectedKeys] : [draggedKey];
+    const movingItems = entries.filter(
+      (e) => movingKeys.includes(keyOf(e)) && keyOf(e) !== keyOf(targetFolder)
+    );
+    if (!movingItems.length) return;
+    try {
+      const results = await Promise.allSettled(
+        movingItems.map((it) =>
+          it.type === 'folder' ? folderApi.move(it.id, targetFolder.id) : fileApi.move(it.id, targetFolder.id)
+        )
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed) toast.error(`${t('toast.error')} (${failed})`);
+      else toast.success(t('toast.moved'));
+      clearSelection();
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.error?.message || t('toast.error'));
+    }
+  };
+
   const menuItems = (item) => {
+    const fav = favoriteKeys.has(keyOf(item));
     const list = [
       {
         label: t('common.open'),
@@ -288,6 +380,11 @@ export default function DrivePage() {
     } else {
       list.push({ label: t('select.downloadZip'), icon: <FileArchive size={17} />, onClick: () => downloadFolderZip(item) });
     }
+    list.push({
+      label: fav ? t('favorites.remove') : t('favorites.add'),
+      icon: <Star size={17} />,
+      onClick: () => toggleFavorite(item),
+    });
     list.push(
       { label: t('common.rename'), icon: <Pencil size={17} />, onClick: () => setRenameItem(item) },
       { label: t('common.move'), icon: <FolderInput size={17} />, onClick: () => setMoveItem(item) },
@@ -297,10 +394,32 @@ export default function DrivePage() {
     return list;
   };
 
-  /* --------------------------- upload / dnd ----------------------------- */
-  const startUpload = (fileList) => {
-    if (!fileList || !fileList.length) return;
-    uploader.upload(fileList, folderId, { onAllDone: () => load() });
+  /* --------------------------- upload / conflict ------------------------ */
+  const startUpload = async (fileList) => {
+    const arr = Array.from(fileList || []);
+    if (!arr.length || isSearching) return;
+    try {
+      const conflicts = await fileApi.checkConflicts(folderId, arr.map((f) => f.name));
+      if (conflicts.length) {
+        setConflictState({ names: conflicts, files: arr });
+        return;
+      }
+    } catch (_) {
+      /* if the check fails, just upload */
+    }
+    uploader.upload(arr, folderId, { onAllDone: () => load() });
+  };
+
+  const resolveConflict = (strategy) => {
+    const { files: arr, names } = conflictState;
+    setConflictState(null);
+    if (strategy === 'skip') {
+      const set = new Set(names);
+      const filtered = arr.filter((f) => !set.has(f.name));
+      if (filtered.length) uploader.upload(filtered, folderId, { onAllDone: () => load() });
+      return;
+    }
+    uploader.upload(arr, folderId, { replace: strategy === 'replace', onAllDone: () => load() });
   };
 
   const onPickFiles = (e) => {
@@ -316,17 +435,20 @@ export default function DrivePage() {
   };
   const onDragEnter = (e) => {
     e.preventDefault();
-    if (isSearching) return;
+    // Only show the upload overlay for files dragged in from the OS, not for
+    // internal item drag-to-move.
+    if (isSearching || !e.dataTransfer?.types?.includes('Files')) return;
     dragCounter.current += 1;
     setDragging(true);
   };
   const onDragLeave = (e) => {
     e.preventDefault();
+    if (!e.dataTransfer?.types?.includes('Files')) return;
     dragCounter.current -= 1;
     if (dragCounter.current <= 0) setDragging(false);
   };
 
-  /* ------------------------------ render -------------------------------- */
+  /* ------------------------------- render ------------------------------- */
   return (
     <div
       onDrop={onDrop}
@@ -335,6 +457,8 @@ export default function DrivePage() {
       onDragLeave={onDragLeave}
       style={{ position: 'relative', minHeight: '70vh' }}
     >
+      <LowSpaceBanner locale={locale} />
+
       {dragging && (
         <div className="dropzone-overlay">
           <div className="inner">
@@ -415,53 +539,52 @@ export default function DrivePage() {
         isSearching ? (
           <EmptyState icon={<SearchIcon size={30} />} title={t('drive.emptyTitle')} />
         ) : (
-          <EmptyState
-            icon={<Inbox size={30} />}
-            title={t('drive.emptyTitle')}
-            hint={t('drive.emptyHint')}
-          />
+          <EmptyState icon={<Inbox size={30} />} title={t('drive.emptyTitle')} hint={t('drive.emptyHint')} />
         )
       ) : (
-        <FileExplorer
-          items={entries}
-          view={view}
-          locale={locale}
-          onOpen={openItem}
-          onMenu={openMenu}
-          selectedKeys={selectedKeys}
-          onToggleSelect={toggleSelect}
-          sort={sort}
-          onSort={onSort}
-        />
+        <>
+          <FileExplorer
+            items={entries}
+            view={view}
+            locale={locale}
+            onOpen={openItem}
+            onMenu={openMenu}
+            selectedKeys={selectedKeys}
+            onToggleSelect={toggleSelect}
+            favoriteKeys={favoriteKeys}
+            onDropMove={onDropMove}
+            sort={sort}
+            onSort={onSort}
+          />
+          {!isSearching && files.length < filesTotal && (
+            <>
+              <div ref={sentinelRef} className="load-more-sentinel" />
+              <div className="loading-row">
+                {loadingMore ? (
+                  <Loader2 size={22} className="spin" style={{ color: 'var(--accent)' }} />
+                ) : (
+                  <button className="btn" onClick={loadMore}>
+                    {t('common.loading')}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </>
       )}
 
-      {/* hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        hidden
-        onChange={onPickFiles}
-      />
+      <input ref={fileInputRef} type="file" multiple hidden onChange={onPickFiles} />
 
-      {/* mobile FAB */}
       {!isSearching && (
         <button className="fab" onClick={() => fileInputRef.current?.click()} aria-label={t('drive.upload')}>
           <Upload size={24} />
         </button>
       )}
 
-      {/* context menu */}
       {menu && (
-        <ContextMenu
-          x={menu.x}
-          y={menu.y}
-          items={menuItems(menu.item)}
-          onClose={() => setMenu(null)}
-        />
+        <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.item)} onClose={() => setMenu(null)} />
       )}
 
-      {/* modals */}
       <InputModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -480,12 +603,7 @@ export default function DrivePage() {
         initialValue={renameItem?.name || ''}
         confirmLabel={t('common.save')}
       />
-      <MoveModal
-        open={!!moveItem}
-        onClose={() => setMoveItem(null)}
-        onMove={doMove}
-        item={moveItem}
-      />
+      <MoveModal open={!!moveItem} onClose={() => setMoveItem(null)} onMove={doMove} item={moveItem} />
       <MoveModal
         open={bulkMoveOpen}
         onClose={() => setBulkMoveOpen(false)}
@@ -512,12 +630,23 @@ export default function DrivePage() {
         danger
         loading={bulkBusy}
       />
+      <ConflictModal
+        open={!!conflictState}
+        conflicts={conflictState?.names || []}
+        onResolve={resolveConflict}
+        onClose={() => setConflictState(null)}
+      />
 
       {previewFile && (
-        <PreviewModal file={previewFile} onClose={() => setPreviewFile(null)} locale={locale} />
+        <PreviewModal
+          file={previewFile}
+          onClose={() => setPreviewFile(null)}
+          locale={locale}
+          isFavorite={favoriteKeys.has(`file-${previewFile.id}`)}
+          onToggleFavorite={() => toggleFavorite(previewFile)}
+        />
       )}
 
-      {/* upload progress */}
       <UploadPanel
         tasks={uploader.tasks}
         open={uploader.panelOpen}

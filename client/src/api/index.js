@@ -21,8 +21,13 @@ export const folderApi = {
 
 /* ------------------------------- Files ----------------------------------- */
 export const fileApi = {
-  list: (folderId) =>
-    api.get('/files', { params: { folderId: folderId ?? '' } }).then((r) => r.data.files),
+  // Returns { files, total, limit, offset }
+  list: (folderId, { limit = 100, offset = 0 } = {}) =>
+    api
+      .get('/files', { params: { folderId: folderId ?? '', limit, offset } })
+      .then((r) => r.data),
+  checkConflicts: (folderId, names) =>
+    api.post('/files/check-conflicts', { folderId: folderId ?? null, names }).then((r) => r.data.conflicts),
   upload: (files, folderId, onProgress, signal) => {
     const form = new FormData();
     for (const f of files) form.append('files', f);
@@ -64,8 +69,10 @@ export const fileApi = {
         maxContentLength: Infinity,
       })
       .then((r) => r.data),
-  uploadComplete: (uploadId) =>
-    api.post(`/files/upload/${uploadId}/complete`).then((r) => r.data.file),
+  uploadComplete: (uploadId, replace = false) =>
+    api
+      .post(`/files/upload/${uploadId}/complete`, null, { params: replace ? { replace: 1 } : {} })
+      .then((r) => r.data.file),
   uploadAbort: (uploadId) => api.delete(`/files/upload/${uploadId}`).then((r) => r.data),
 
   // ---- ZIP download ----
@@ -101,4 +108,42 @@ export const adminApi = {
   deleteUser: (id) => api.delete(`/admin/users/${id}`).then((r) => r.data),
   stats: () => api.get('/admin/dashboard/stats').then((r) => r.data),
   logs: (params) => api.get('/admin/activity-logs', { params }).then((r) => r.data),
+  notifyTest: () => api.post('/admin/notify/test').then((r) => r.data),
+  telegramChats: () => api.get('/admin/notify/telegram-chats').then((r) => r.data),
+};
+
+/* ----------------------------- Favorites --------------------------------- */
+export const favoriteApi = {
+  list: () => api.get('/favorites').then((r) => r.data),
+  ids: () => api.get('/favorites/ids').then((r) => r.data),
+  add: (target) => api.post('/favorites', target).then((r) => r.data),
+  remove: (target) => api.delete('/favorites', { data: target }).then((r) => r.data),
+};
+
+/* ------------------------------- Recent ---------------------------------- */
+export const recentApi = {
+  list: () => api.get('/recent').then((r) => r.data.files),
+};
+
+/* -------------------------------- Tags ----------------------------------- */
+export const tagApi = {
+  list: () => api.get('/tags').then((r) => r.data.tags),
+  create: (name, color) => api.post('/tags', { name, color }).then((r) => r.data.tag),
+  remove: (id) => api.delete(`/tags/${id}`).then((r) => r.data),
+  filesByTag: (id) => api.get(`/tags/${id}/files`).then((r) => r.data.files),
+  ofFile: (fileId) => api.get(`/files/${fileId}/tags`).then((r) => r.data.tags),
+  attach: (fileId, payload) => api.post(`/files/${fileId}/tags`, payload).then((r) => r.data.tags),
+  detach: (fileId, tagId) => api.delete(`/files/${fileId}/tags/${tagId}`).then((r) => r.data.tags),
+};
+
+/* ------------------------------ Comments --------------------------------- */
+export const commentApi = {
+  list: (fileId) => api.get(`/files/${fileId}/comments`).then((r) => r.data.comments),
+  add: (fileId, body) => api.post(`/files/${fileId}/comments`, { body }).then((r) => r.data.comment),
+  remove: (id) => api.delete(`/comments/${id}`).then((r) => r.data),
+};
+
+/* ------------------------------ Storage ---------------------------------- */
+export const storageApi = {
+  quota: () => api.get('/storage/quota').then((r) => r.data),
 };

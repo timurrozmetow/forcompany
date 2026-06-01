@@ -33,6 +33,8 @@
   },
   "nav": {
     "drive": "Dosyalarım",
+    "favorites": "Favoriler",
+    "recent": "Son kullanılanlar",
     "trash": "Çöp Kutusu",
     "admin": "Yönetim",
     "users": "Kullanıcılar",
@@ -140,6 +142,36 @@
     "clear": "Seçimi temizle",
     "downloadZip": "ZIP indir"
   },
+  "favorites": {
+    "add": "Favorilere ekle",
+    "remove": "Favorilerden çıkar",
+    "empty": "Favori yok",
+    "emptyHint": "Menüden dosya ve klasörleri favorilere ekleyin"
+  },
+  "recent": {
+    "empty": "Son kullanılan dosya yok",
+    "emptyHint": "Açtığınız veya yüklediğiniz dosyalar burada görünür"
+  },
+  "tags": {
+    "title": "Etiketler",
+    "none": "Etiket yok",
+    "add": "Etiket ekle…"
+  },
+  "comments": {
+    "title": "Yorumlar",
+    "none": "Henüz yorum yok",
+    "add": "Yorum yaz…"
+  },
+  "conflict": {
+    "title": "Dosya zaten var",
+    "message": "Bu klasörde aynı ada sahip {{count}} dosya var. Ne yapılsın?",
+    "keepBoth": "İkisini de tut",
+    "replace": "Değiştir (eski → çöpe)",
+    "skip": "Mevcut olanları atla"
+  },
+  "storage": {
+    "lowSpace": "Diskte boş alan az"
+  },
   "settings": {
     "title": "Ayarlar",
     "appearance": "Görünüm",
@@ -180,6 +212,7 @@
     "trashed": "Çöp kutusuna taşındı",
     "restored": "Geri yüklendi",
     "deletedForever": "Kalıcı olarak silindi",
+    "removed": "Kaldırıldı",
     "uploadDone": "Yükleme tamamlandı",
     "uploadFailed": "Yükleme hatası",
     "userCreated": "Kullanıcı oluşturuldu",

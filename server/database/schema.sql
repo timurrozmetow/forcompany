@@ -61,6 +61,8 @@ CREATE TABLE IF NOT EXISTS files (
   is_trashed    TINYINT(1)      NOT NULL DEFAULT 0,
   trashed_by    BIGINT UNSIGNED NULL,
   trashed_at    DATETIME        NULL,
+  text_content  LONGTEXT        NULL,   -- extracted text for full-text search
+  indexed_at    DATETIME        NULL,
   created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -69,6 +71,7 @@ CREATE TABLE IF NOT EXISTS files (
   KEY idx_files_trashed (is_trashed),
   KEY idx_files_uploaded_by (uploaded_by),
   KEY idx_files_name (original_name),
+  FULLTEXT KEY ft_files_content (original_name, text_content),
   CONSTRAINT fk_files_folder   FOREIGN KEY (folder_id)   REFERENCES folders(id) ON DELETE CASCADE,
   CONSTRAINT fk_files_uploader FOREIGN KEY (uploaded_by) REFERENCES users(id)   ON DELETE RESTRICT,
   CONSTRAINT fk_files_trasher  FOREIGN KEY (trashed_by)  REFERENCES users(id)   ON DELETE SET NULL
@@ -94,6 +97,62 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   KEY idx_logs_target (target_type, target_id),
   KEY idx_logs_created (created_at),
   CONSTRAINT fk_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
+--  favorites (per user) — file_id OR folder_id set
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS favorites (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    BIGINT UNSIGNED NOT NULL,
+  file_id    BIGINT UNSIGNED NULL,
+  folder_id  BIGINT UNSIGNED NULL,
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_fav_file (user_id, file_id),
+  UNIQUE KEY uq_fav_folder (user_id, folder_id),
+  KEY idx_fav_user (user_id),
+  CONSTRAINT fk_fav_user   FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_fav_file   FOREIGN KEY (file_id)   REFERENCES files(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_fav_folder FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
+--  tags + file_tags
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS tags (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name       VARCHAR(64)     NOT NULL,
+  color      VARCHAR(16)     NULL,
+  created_by BIGINT UNSIGNED NULL,
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_tag_name (name),
+  CONSTRAINT fk_tag_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS file_tags (
+  file_id BIGINT UNSIGNED NOT NULL,
+  tag_id  BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (file_id, tag_id),
+  KEY idx_ft_tag (tag_id),
+  CONSTRAINT fk_ft_file FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ft_tag  FOREIGN KEY (tag_id)  REFERENCES tags(id)  ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
+--  comments (on files)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS comments (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  file_id    BIGINT UNSIGNED NOT NULL,
+  user_id    BIGINT UNSIGNED NULL,
+  body       VARCHAR(2000)   NOT NULL,
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_comments_file (file_id),
+  CONSTRAINT fk_comment_file FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+  CONSTRAINT fk_comment_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

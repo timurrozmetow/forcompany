@@ -22,4 +22,8 @@ router.delete('/users/:id', users.remove);
 router.get('/dashboard/stats', admin.dashboardStats);
 router.get('/activity-logs', admin.activityLogs);
 
+// Notifications
+router.post('/notify/test', admin.notifyTest);
+router.get('/notify/telegram-chats', admin.telegramChats);
+
 module.exports = router;

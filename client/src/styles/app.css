@@ -833,6 +833,11 @@
 .preview-bar .spacer { flex: 1; }
 .preview-bar .btn-icon { color: rgba(255, 255, 255, 0.85); }
 .preview-bar .btn-icon:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.preview-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
 .preview-body {
   flex: 1;
   display: grid;
@@ -840,6 +845,33 @@
   padding: 0 24px 28px;
   overflow: auto;
   min-height: 0;
+}
+.preview-info {
+  width: 340px;
+  max-width: 92vw;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  gap: 18px;
+  overflow-y: auto;
+}
+.preview-info .pi-title {
+  font-weight: 660;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+@media (max-width: 700px) {
+  .preview-info {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: 100%;
+  }
 }
 .preview-body img,
 .preview-body video {
@@ -1083,6 +1115,124 @@
 .selbar .count {
   font-weight: 650;
   color: var(--accent);
+}
+
+/* --------------------------- Low space banner ---------------------------- */
+.lowspace-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: color-mix(in srgb, var(--warning) 16%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+.lowspace-banner svg:first-child {
+  color: var(--warning);
+  flex-shrink: 0;
+}
+.lowspace-banner .btn-icon {
+  margin-left: auto;
+}
+
+/* --------------------------- Favorite star ------------------------------- */
+.fav-star {
+  position: absolute;
+  top: 10px;
+  right: 42px;
+  z-index: 3;
+  color: var(--warning);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+.list-name .fav-star {
+  position: static;
+  margin-left: 2px;
+}
+
+/* --------------------------- Drag & drop move ---------------------------- */
+.tile.drag-over,
+.list-row.drag-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  background: var(--accent-soft);
+}
+.tile.dragging,
+.list-row.dragging {
+  opacity: 0.45;
+}
+
+/* --------------------------- Tags ---------------------------------------- */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 560;
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+.tag-chip .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.tag-chip button {
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  opacity: 0.6;
+}
+.tag-chip button:hover {
+  opacity: 1;
+}
+
+/* --------------------------- Comments ------------------------------------ */
+.comment {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.comment:last-child {
+  border-bottom: none;
+}
+.comment .body {
+  flex: 1;
+  min-width: 0;
+}
+.comment .head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+.comment .head .name {
+  font-weight: 620;
+  font-size: 13px;
+}
+.comment .text {
+  font-size: 14px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* --------------------------- Load more ----------------------------------- */
+.load-more-sentinel {
+  height: 1px;
+}
+.loading-row {
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  color: var(--text-tertiary);
 }
 
 /* --------------------------- Disk usage meter ---------------------------- */

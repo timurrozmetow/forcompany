@@ -8,6 +8,9 @@ const folderRoutes = require('./folder.routes');
 const fileRoutes = require('./file.routes');
 const searchRoutes = require('./search.routes');
 const trashRoutes = require('./trash.routes');
+const tagRoutes = require('./tag.routes');
+const favoriteRoutes = require('./favorite.routes');
+const miscRoutes = require('./misc.routes');
 
 const db = require('../db/pool');
 const { getDiskSpace } = require('../utils/diskSpace');
@@ -39,5 +42,8 @@ router.use('/folders', folderRoutes);
 router.use('/files', fileRoutes);
 router.use('/search', searchRoutes);
 router.use('/trash', trashRoutes);
+router.use('/tags', tagRoutes);
+router.use('/favorites', favoriteRoutes);
+router.use('/', miscRoutes); // /recent, /comments/:id, /storage/quota
 
 module.exports = router;

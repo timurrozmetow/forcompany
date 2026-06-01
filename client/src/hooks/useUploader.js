@@ -3,21 +3,20 @@ import { fileApi } from '../api';
 import { errorMessage } from '../api/client';
 
 let taskSeq = 0;
-
 const LS_PREFIX = 'cd_up:';
+const CONCURRENCY = 3; // parallel chunks per file
 
 function fingerprint(file, folderId) {
   return `${LS_PREFIX}${file.name}|${file.size}|${file.lastModified}|${folderId ?? 'root'}`;
 }
 
 /**
- * Chunked + resumable upload queue.
- * - Each file is split into chunks (size decided by the server) and uploaded
- *   one chunk at a time. A dropped connection only loses the current chunk.
- * - The server upload session id is cached in localStorage keyed by a file
- *   fingerprint, so an interrupted upload RESUMES (skips chunks already on the
- *   server) — even after a page reload — when retried.
- * - Reports live progress, speed and ETA.
+ * Chunked + resumable + PARALLEL upload queue.
+ * - Each file is split into chunks; up to CONCURRENCY chunks upload at once.
+ * - Resumes interrupted uploads (skips chunks already on the server), even
+ *   after a page reload, via a localStorage-cached upload session id.
+ * - Reports live progress, speed and ETA; supports cancel and retry.
+ * - `opts.replace` finalizes with ?replace=1 (older same-name versions -> trash).
  */
 export function useUploader() {
   const [tasks, setTasks] = useState([]);
@@ -40,11 +39,10 @@ export function useUploader() {
       controllers.current.set(task.id, controller);
       const fp = fingerprint(task.file, task.folderId);
       update(task.id, { status: 'uploading', error: null });
-
       const startTime = Date.now();
 
       try {
-        // 1) Resume or init the upload session.
+        // 1) Resume or init the session.
         let session = null;
         const cachedId = localStorage.getItem(fp);
         if (cachedId) {
@@ -52,7 +50,6 @@ export function useUploader() {
             session = await fileApi.uploadStatus(cachedId);
           } catch (_) {
             localStorage.removeItem(fp);
-            session = null;
           }
         }
         if (!session) {
@@ -67,43 +64,58 @@ export function useUploader() {
 
         const { uploadId, chunkSize, totalChunks } = session;
         const received = new Set(session.received || []);
-        let completedChunks = received.size;
-        const sessionStartLoaded = Math.min(completedChunks * chunkSize, task.size);
+        const chunkBytes = (i) => Math.min(chunkSize, task.file.size - i * chunkSize);
 
-        const reportProgress = (currentChunkLoaded) => {
-          const baseLoaded = completedChunks * chunkSize;
-          const loaded = Math.min(baseLoaded + (currentChunkLoaded || 0), task.size);
+        let completedBytes = 0;
+        for (const i of received) completedBytes += chunkBytes(i);
+        const sessionStartLoaded = completedBytes;
+        const inflight = new Map(); // index -> loaded bytes
+
+        const report = () => {
+          let loaded = completedBytes;
+          for (const v of inflight.values()) loaded += v;
+          loaded = Math.min(loaded, task.size);
           const elapsed = (Date.now() - startTime) / 1000;
           const rate = elapsed > 0 ? (loaded - sessionStartLoaded) / elapsed : 0;
           const progress = task.size ? Math.min(100, Math.round((loaded / task.size) * 100)) : 100;
           const eta = rate > 0 ? (task.size - loaded) / rate : null;
           update(task.id, { progress, loaded, total: task.size, rate: Math.max(rate, 0), eta });
         };
+        report();
 
-        reportProgress(0);
+        // 2) Build the work queue of missing chunks and run a small pool.
+        const queue = [];
+        for (let i = 0; i < totalChunks; i += 1) if (!received.has(i)) queue.push(i);
 
-        // 2) Upload missing chunks sequentially.
-        for (let i = 0; i < totalChunks; i += 1) {
-          if (controller.signal.aborted) throw new DOMException('canceled', 'AbortError');
-          if (received.has(i)) continue;
-          const start = i * chunkSize;
-          const end = Math.min(start + chunkSize, task.file.size);
-          const blob = task.file.slice(start, end);
-
-          // eslint-disable-next-line no-await-in-loop
-          await fileApi.uploadChunk(
-            uploadId,
-            i,
-            blob,
-            (e) => reportProgress(e.loaded || 0),
-            controller.signal
-          );
-          completedChunks += 1;
-          reportProgress(0);
-        }
+        let qi = 0;
+        const worker = async () => {
+          while (qi < queue.length) {
+            if (controller.signal.aborted) throw new DOMException('canceled', 'AbortError');
+            const i = queue[qi++];
+            const start = i * chunkSize;
+            const end = Math.min(start + chunkSize, task.file.size);
+            const blob = task.file.slice(start, end);
+            inflight.set(i, 0);
+            // eslint-disable-next-line no-await-in-loop
+            await fileApi.uploadChunk(
+              uploadId,
+              i,
+              blob,
+              (e) => {
+                inflight.set(i, e.loaded || 0);
+                report();
+              },
+              controller.signal
+            );
+            inflight.delete(i);
+            completedBytes += chunkBytes(i);
+            report();
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length || 1) }, worker));
 
         // 3) Finalize.
-        const file = await fileApi.uploadComplete(uploadId);
+        const file = await fileApi.uploadComplete(uploadId, !!optionsRef.current.replace);
         localStorage.removeItem(fp);
         update(task.id, { status: 'done', progress: 100, rate: 0, eta: 0, loaded: task.size });
         optionsRef.current.onEach?.(file);
@@ -151,9 +163,6 @@ export function useUploader() {
       }));
       setTasks((list) => [...newTasks, ...list]);
 
-      // Upload files one after another to avoid saturating the link with many
-      // parallel streams (better for large files); chunks within a file are
-      // already sequential.
       for (const task of newTasks) {
         // eslint-disable-next-line no-await-in-loop
         await runTask(task);

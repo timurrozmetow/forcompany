@@ -5,6 +5,7 @@ const { hashPassword } = require('../utils/password');
 const { cleanUsername, checkPasswordStrength, parseRole } = require('../utils/validators');
 const AppError = require('../utils/AppError');
 const activityLog = require('./activityLog.service');
+const notify = require('./notify.service');
 const { publicUser } = require('./auth.service');
 
 async function listUsers() {
@@ -46,6 +47,7 @@ async function createUser({ username, password, role, actor, context }) {
     newValue: { username: cleanName, role: cleanRole },
     context,
   });
+  notify.event('create_user', { actor, target: cleanName, detail: `Роль: ${cleanRole}` });
 
   return getUser(result.insertId);
 }
@@ -129,7 +131,7 @@ async function changePassword({ id, password, actor, context }) {
 }
 
 async function setBlocked({ id, blocked, actor, context }) {
-  const existing = await queryOne('SELECT id, role, is_active FROM users WHERE id = ?', [id]);
+  const existing = await queryOne('SELECT id, username, role, is_active FROM users WHERE id = ?', [id]);
   if (!existing) throw AppError.notFound('User not found');
 
   const active = blocked ? 0 : 1;
@@ -147,6 +149,11 @@ async function setBlocked({ id, blocked, actor, context }) {
     oldValue: { isActive: !!existing.is_active },
     newValue: { isActive: !!active },
     context,
+  });
+  notify.event('block_user', {
+    actor,
+    target: existing.username,
+    detail: blocked ? 'Заблокирован' : 'Разблокирован',
   });
 
   return getUser(id);
@@ -186,6 +193,7 @@ async function deleteUser({ id, actor, context }) {
     oldValue: { username: existing.username, role: existing.role },
     context,
   });
+  notify.event('delete_user', { actor, target: existing.username });
 
   return { success: true };
 }

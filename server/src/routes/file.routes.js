@@ -5,12 +5,17 @@ const { authenticate } = require('../middleware/auth');
 const ctrl = require('../controllers/file.controller');
 const uploadCtrl = require('../controllers/upload.controller');
 const zipCtrl = require('../controllers/zip.controller');
+const tagCtrl = require('../controllers/tag.controller');
+const commentCtrl = require('../controllers/comment.controller');
 
 const router = express.Router();
 
 router.use(authenticate);
 
 router.get('/', ctrl.list);
+
+// Pre-flight: which of these names already exist in the folder?
+router.post('/check-conflicts', ctrl.checkConflicts);
 
 // Simple single-request multipart upload (small files).
 router.post('/upload', ctrl.upload);
@@ -31,6 +36,14 @@ router.get('/:id/download', ctrl.download);
 router.get('/:id/thumbnail', ctrl.thumbnail);
 router.head('/:id/preview', ctrl.preview);
 router.get('/:id/preview', ctrl.preview);
+
+// Comments + tags for a file.
+router.get('/:id/comments', commentCtrl.list);
+router.post('/:id/comments', commentCtrl.add);
+router.get('/:id/tags', tagCtrl.ofFile);
+router.post('/:id/tags', tagCtrl.attach);
+router.delete('/:id/tags/:tagId', tagCtrl.detach);
+
 router.put('/:id', ctrl.rename);
 router.patch('/:id/move', ctrl.move);
 router.delete('/:id', ctrl.trash); // soft-delete -> trash
