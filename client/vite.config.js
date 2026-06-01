@@ -24,6 +24,10 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
+        // NEVER let the SW hijack API requests — downloads/previews/streaming
+        // go straight to the network (a download link is a navigation request,
+        // which navigateFallback would otherwise replace with index.html).
+        navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
         // Cache JSON list endpoints (NetworkFirst) so the last-viewed folder/
         // favorites/recent lists are available offline. Never cache big media.
