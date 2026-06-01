@@ -9,14 +9,17 @@ const { publicFolder } = require('./folder.service');
  * Search across active (non-trashed) folders and files.
  * Files are matched by full-text (name + extracted content) with a graceful
  * fallback to a plain name LIKE — so search keeps working even if the full-text
- * index isn't present (e.g. migration_v2 not applied yet) instead of 500-ing.
+ * index isn't present instead of 500-ing.
+ *
+ * Note: backslash is MySQL's default LIKE escape character, so the escaped
+ * %/_ in the pattern work without an explicit ESCAPE clause.
  */
 async function search(qRaw) {
   const q = String(qRaw || '').trim();
   if (q.length < 1) return { folders: [], files: [] };
   if (q.length > 128) return { folders: [], files: [] };
 
-  const like = `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`;
+  const like = `%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`;
 
   // BOOLEAN-mode query with prefix matching, e.g. "year report" -> "+year* +report*".
   const booleanQuery = q
@@ -30,7 +33,7 @@ async function search(qRaw) {
     `SELECT f.*, u.username AS created_by_name
        FROM folders f
        LEFT JOIN users u ON u.id = f.created_by
-      WHERE f.is_trashed = 0 AND f.name LIKE ? ESCAPE '\\'
+      WHERE f.is_trashed = 0 AND f.name LIKE ?
       ORDER BY f.name ASC
       LIMIT 100`,
     [like]
@@ -39,7 +42,7 @@ async function search(qRaw) {
   const LIKE_ONLY_SQL = `SELECT f.*, u.username AS uploaded_by_name, 0 AS score
        FROM files f
        LEFT JOIN users u ON u.id = f.uploaded_by
-      WHERE f.is_trashed = 0 AND f.original_name LIKE ? ESCAPE '\\'
+      WHERE f.is_trashed = 0 AND f.original_name LIKE ?
       ORDER BY f.original_name ASC
       LIMIT 200`;
 
@@ -54,14 +57,13 @@ async function search(qRaw) {
           WHERE f.is_trashed = 0
             AND (
               MATCH(f.original_name, f.text_content) AGAINST (? IN BOOLEAN MODE)
-              OR f.original_name LIKE ? ESCAPE '\\'
+              OR f.original_name LIKE ?
             )
           ORDER BY score DESC, f.original_name ASC
           LIMIT 200`,
         [booleanQuery, booleanQuery, like]
       );
     } catch (err) {
-      // Most likely the full-text column/index is missing (run `npm run migrate:v2`).
       logger.warn('Full-text search unavailable, falling back to name search:', err.message);
       files = await query(LIKE_ONLY_SQL, [like]);
     }
