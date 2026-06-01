@@ -12,7 +12,7 @@ const config = require('../config');
 const { query, execute, close } = require('./pool');
 
 const ADMIN_USERNAME = 'admin';
-const ADMIN_PASSWORD = 'admin12345';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin12345';
 
 async function main() {
   const existing = await query('SELECT id FROM users WHERE username = ? LIMIT 1', [ADMIN_USERNAME]);
