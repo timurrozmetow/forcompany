@@ -10,6 +10,7 @@
     "migrate": "node src/db/migrate.js",
     "migrate:v2": "node src/db/migrate-v2.js",
     "migrate:v3": "node src/db/migrate-v3.js",
+    "migrate:v4": "node src/db/migrate-v4.js",
     "seed": "node src/db/seed.js",
     "create-user": "node src/db/create-user.js",
     "reconcile": "node src/db/reconcile.js",

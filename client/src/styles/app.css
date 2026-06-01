@@ -1402,6 +1402,65 @@
 .ptr-indicator.armed { color: var(--accent); }
 
 /* ============================================================================
+   Work log ("Что я сделал")
+   ========================================================================== */
+.wl-date {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+.wl-list {
+  counter-reset: wl;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wl-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 10px;
+}
+.wl-item::before {
+  counter-increment: wl;
+  content: counter(wl) '.';
+  color: var(--text-tertiary);
+  font-weight: 640;
+  min-width: 18px;
+  flex-shrink: 0;
+}
+.wl-item:hover {
+  background: var(--surface-hover);
+}
+.wl-text {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.wl-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+}
+.wl-item:hover .wl-actions {
+  opacity: 1;
+}
+@media (max-width: 900px) {
+  .wl-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .wl-actions {
+    opacity: 1;
+  }
+}
+
+/* ============================================================================
    Full responsive layer
    ========================================================================== */
 @media (prefers-reduced-motion: reduce) {

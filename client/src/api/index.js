@@ -97,6 +97,20 @@ export const userApi = {
   basic: () => api.get('/users/basic').then((r) => r.data.users),
 };
 
+/* ------------------------------ Work logs -------------------------------- */
+export const workLogApi = {
+  list: (params) => api.get('/worklogs', { params }).then((r) => r.data), // { entries, from, to, userId }
+  summary: (params) => api.get('/worklogs/summary', { params }).then((r) => r.data),
+  add: (payload) => api.post('/worklogs', payload).then((r) => r.data.entry),
+  update: (id, payload) => api.put(`/worklogs/${id}`, payload).then((r) => r.data.entry),
+  remove: (id) => api.delete(`/worklogs/${id}`).then((r) => r.data),
+  exportUrl: ({ format, userId, from, to }) => {
+    const qs = new URLSearchParams({ format, from, to });
+    if (userId) qs.set('userId', userId);
+    return mediaUrl(`/worklogs/export?${qs.toString()}`);
+  },
+};
+
 /* --------------------------- Notifications ------------------------------- */
 export const notificationApi = {
   list: () => api.get('/notifications').then((r) => r.data), // { items, unread }

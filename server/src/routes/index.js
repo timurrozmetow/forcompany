@@ -10,6 +10,7 @@ const searchRoutes = require('./search.routes');
 const trashRoutes = require('./trash.routes');
 const tagRoutes = require('./tag.routes');
 const favoriteRoutes = require('./favorite.routes');
+const worklogRoutes = require('./worklog.routes');
 const miscRoutes = require('./misc.routes');
 
 const db = require('../db/pool');
@@ -44,6 +45,7 @@ router.use('/search', searchRoutes);
 router.use('/trash', trashRoutes);
 router.use('/tags', tagRoutes);
 router.use('/favorites', favoriteRoutes);
+router.use('/worklogs', worklogRoutes);
 router.use('/', miscRoutes); // /recent, /comments/:id, /storage/quota
 
 module.exports = router;

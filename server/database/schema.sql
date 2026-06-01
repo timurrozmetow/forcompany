@@ -176,4 +176,22 @@ CREATE TABLE IF NOT EXISTS notifications (
   CONSTRAINT fk_notif_folder FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ---------------------------------------------------------------------------
+--  work_logs ("Что я сделал" — daily activity journal)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS work_logs (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    BIGINT UNSIGNED NOT NULL,
+  author_id  BIGINT UNSIGNED NULL,
+  entry_date DATE            NOT NULL,
+  content    VARCHAR(2000)   NOT NULL,
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_wl_user_date (user_id, entry_date),
+  KEY idx_wl_date (entry_date),
+  CONSTRAINT fk_wl_user   FOREIGN KEY (user_id)   REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_wl_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;

@@ -33,6 +33,7 @@
   },
   "nav": {
     "drive": "Dosyalarım",
+    "worklog": "Günlük",
     "favorites": "Favoriler",
     "recent": "Son kullanılanlar",
     "trash": "Çöp Kutusu",
@@ -172,6 +173,23 @@
   },
   "storage": {
     "lowSpace": "Diskte boş alan az"
+  },
+  "worklog": {
+    "title": "İş günlüğü",
+    "placeholder": "Ne yaptın? (örn: 5 firmadan boiler fiyatı buldum)",
+    "add": "Ekle",
+    "added": "Kayıt eklendi",
+    "addingFor": "Şunun için ekleniyor",
+    "entriesOf": "Kayıtlar:",
+    "entriesCol": "Kayıt",
+    "days": "Gün",
+    "total": "Toplam kayıt",
+    "analysis": "Aylık analiz",
+    "empty": "Henüz kayıt yok",
+    "emptyHint": "Yaptıklarınızı madde madde ekleyin",
+    "entry": "Kayıt",
+    "allPdf": "Tümü · PDF",
+    "allWord": "Tümü · Word"
   },
   "pwa": {
     "newVersion": "Yeni sürüm mevcut",

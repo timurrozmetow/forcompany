@@ -124,6 +124,7 @@ npm ci --omit=dev
 npm run migrate
 npm run migrate:v2
 npm run migrate:v3
+npm run migrate:v4
 ADMIN_PASSWORD="$ADMIN_PASSWORD" npm run seed   # creates admin with your password if no admin exists
 
 # --------------------------------------------------------------------------
